@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe Id="NFe35131212345678000123550010000000011000000001" versao="4.00">
+    <det nItem="1">
+      <prod>
+        <cProd>PROD001</cProd>
+        <cEAN>7891234567890</cEAN>
+        <xProd>Produto de Teste 1</xProd>
+        <NCM>12345678</NCM>
+        <CFOP>5101</CFOP>
+        <uCom>UN</uCom>
+        <qCom>10.0000</qCom>
+        <vUnCom>50.0000000000</vUnCom>
+        <vProd>500.00</vProd>
+        <cst>00</cst>
+      </prod>
+    </det>
+    <det nItem="2">
+      <prod>
+        <cProd>PROD002</cProd>
+        <cEAN>7891234567891</cEAN>
+        <xProd>Produto de Teste 2</xProd>
+        <NCM>87654321</NCM>
+        <CFOP>5101</CFOP>
+        <uCom>UN</uCom>
+        <qCom>5.0000</qCom>
+        <vUnCom>30.0000000000</vUnCom>
+        <vProd>150.00</vProd>
+        <cst>00</cst>
+      </prod>
+    </det>
+  </infNFe>
+</NFe>

@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --secondary: #64748b;
+  --accent: #f1f5f9;
+  --border: #e2e8f0;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --muted: #64748b;
+  --muted-foreground: #475569;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --primary: #60a5fa;
+    --primary-dark: #3b82f6;
+    --secondary: #94a3b8;
+    --accent: #1e293b;
+    --border: #334155;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --error: #f87171;
+    --muted: #64748b;
+    --muted-foreground: #cbd5e1;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Melhorar aparência dos inputs */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Melhorar aparência das tabelas */
+table {
+  border-collapse: collapse;
+}
+
+th, td {
+  border-bottom: 1px solid var(--border);
+}
+
+/* Melhorar aparência dos botões */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* Estilos para gráficos Recharts */
+.recharts-cartesian-axis-tick-value,
+.recharts-cartesian-axis-tick text {
+  fill: #374151 !important; /* text-gray-700 */
+  font-size: 12px;
+}
+
+.recharts-tooltip-label,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value {
+  color: #374151 !important; /* text-gray-700 */
+}
+
+.recharts-legend-item-text {
+  color: #374151 !important; /* text-gray-700 */
+}
+
+.recharts-cartesian-grid line {
+  stroke: #e5e7eb !important; /* gray-200 */
+}
+
+.recharts-cartesian-axis line {
+  stroke: #d1d5db !important; /* gray-300 */
+}
+
+/* Estilos específicos para tooltips e labels */
+.recharts-default-tooltip {
+  background-color: white !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 4px !important;
+}
+
+.recharts-tooltip-label {
+  color: #374151 !important; /* text-gray-700 */
+  font-weight: 500 !important;
+}
+
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value {
+  color: #374151 !important; /* text-gray-700 */
+}
+
+/* Estilos para pie chart labels */
+.recharts-pie-label-text {
+  fill: #374151 !important; /* text-gray-700 */
+}
+
+/* Melhorar contraste geral */
+* {
+  color: inherit;
+}
+
+/* Garantir que textos sem classe específica tenham cor adequada */
+body, p, span, div, h1, h2, h3, h4, h5, h6,
+table, th, td, tr,
+label, legend, fieldset,
+nav, header, footer, main, section, article, aside {
+  color: #111827; /* text-gray-900 */
+}
+
+/* Para elementos de formulário */
+input, textarea, select, option {
+  color: #111827; /* text-gray-900 */
+}
+
+/* Inputs de data especificamente */
+input[type="date"] {
+  color: #111827; /* text-gray-900 */
+  color-scheme: light;
+}
+
+/* Inputs de data - forçar cor em todos os navegadores */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0); /* Manter ícone escuro */
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  color: #111827;
+}
+
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  color: #111827;
+}
+
+input[type="date"]::-webkit-datetime-edit-text {
+  color: #111827;
+}
+
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  color: #111827;
+}
+
+input[type="date"]::-moz-focus-inner {
+  border: 0;
+}
+
+/* Firefox */
+input[type="date"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* Para elementos interativos */
+a, button, [role="button"] {
+  color: inherit;
+}
+
+/* Para listas */
+li, dt, dd {
+  color: inherit;
+}
+
+/* Para elementos de navegação e links */
+nav a, .nav-link {
+  color: inherit;
+}
+
+/* Reset de cores para garantir consistência */
+* {
+  color: inherit;
+}
+
+body {
+  color: #111827; /* text-gray-900 */
+}
