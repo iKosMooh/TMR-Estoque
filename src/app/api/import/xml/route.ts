@@ -29,6 +29,12 @@ interface PurchaseOrderItem {
   Qty?: string;
 }
 
+interface ExtendedPurchaseOrderItem extends PurchaseOrderItem {
+  purchaseOrder: Record<string, unknown>;
+}
+
+type Item = NFeItem | ExtendedPurchaseOrderItem;
+
 interface ProductData {
   internalCode: string;
   barcode: string | null;
@@ -58,7 +64,7 @@ export async function POST(request: NextRequest) {
     const parsed = parser.parse(xmlContent);
 
     // Detectar tipo de XML automaticamente
-    let items: (NFeItem | PurchaseOrderItem)[] = [];
+    let items: Item[] = [];
     let xmlType = '';
 
     if (parsed.nfeProc?.NFe?.infNFe?.det || parsed.NFe?.infNFe?.det) {
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
       for (const po of purchaseOrders) {
         if (po.Items?.Item) {
           const poItems = Array.isArray(po.Items.Item) ? po.Items.Item : [po.Items.Item];
-          items.push(...poItems.map((item: PurchaseOrderItem) => ({ ...item, purchaseOrder: po })));
+          items.push(...poItems.map((item: PurchaseOrderItem) => ({ ...item, purchaseOrder: po } as ExtendedPurchaseOrderItem)));
         }
       }
     } else {
@@ -172,7 +178,7 @@ export async function POST(request: NextRequest) {
             productId: product.id,
             type: 'entrada',
             quantity: productData.quantity,
-            unitPrice: productData.salePrice,
+            unitPrice: productData.salePrice.toString(),
             date: new Date(),
             reference: `Import XML - ${file.name}`,
           });
@@ -191,14 +197,14 @@ export async function POST(request: NextRequest) {
             ncm: productData.ncm,
             cfopEntry: productData.cfop,
             cst: productData.cst,
-          }).returning({ id: products.id });
+          }).$returningId();
 
           // Registrar movimento
           await db.insert(movements).values({
             productId: newProduct[0].id,
             type: 'entrada',
             quantity: productData.quantity,
-            unitPrice: productData.salePrice,
+            unitPrice: productData.salePrice.toString(),
             date: new Date(),
             reference: `Import XML - ${file.name}`,
           });
