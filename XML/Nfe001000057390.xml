@@ -1,0 +1,232 @@
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe31250223750102000120550010000573901705547513" versao="4.00">
+      <ide>
+        <cUF>31</cUF>
+        <cNF>70554751</cNF>
+        <natOp>Venda merc.adq.rec.terc ST, Contr.Subst.</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>57390</nNF>
+        <dhEmi>2025-02-25T00:00:00-03:00</dhEmi>
+        <dhSaiEnt>2025-02-25T16:16:04-03:00</dhSaiEnt>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>3151800</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>3</cDV>
+        <tpAmb>1</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>0</indFinal>
+        <indPres>1</indPres>
+        <indIntermed>0</indIntermed>
+        <procEmi>0</procEmi>
+        <verProc>1.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>23750102000120</CNPJ>
+        <xNome>Sulbat Baterias e Pilhas Ltda</xNome>
+        <enderEmit>
+          <xLgr>Rua Leonardo Luis Araujo Basso</xLgr>
+          <nro>129</nro>
+          <xBairro>Jardim Philadelphia</xBairro>
+          <cMun>3151800</cMun>
+          <xMun>Pocos de Caldas</xMun>
+          <UF>MG</UF>
+          <CEP>37710334</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+          <fone>3537222573</fone>
+        </enderEmit>
+        <IE>5184733790010</IE>
+        <CRT>3</CRT>
+      </emit>
+      <dest>
+        <CNPJ>27981104000180</CNPJ>
+        <xNome>THALES MUSTAFE DA ROCHA 06115115680</xNome>
+        <enderDest>
+          <xLgr>RUA BRASIL</xLgr>
+          <nro>401</nro>
+          <xBairro>JD AMERICA</xBairro>
+          <cMun>3144102</cMun>
+          <xMun>Muzambinho</xMun>
+          <UF>MG</UF>
+          <CEP>37890000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+          <fone>0035988754</fone>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>0029869290060</IE>
+        <email>daisasouzarocha@gmail.com</email>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <cProd>00000000002340</cProd>
+          <cEAN>7891676109714</cEAN>
+          <xProd>BAT. HELIAR H70ND 24M ECO</xProd>
+          <NCM>85071090</NCM>
+          <CEST>0105300</CEST>
+          <CFOP>5405</CFOP>
+          <uCom>PC</uCom>
+          <qCom>4.0000</qCom>
+          <vUnCom>650.0000000000</vUnCom>
+          <vProd>2600.00</vProd>
+          <cEANTrib>7891676109714</cEANTrib>
+          <uTrib>PC</uTrib>
+          <qTrib>4.0000</qTrib>
+          <vUnTrib>650.0000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <vTotTrib>506.22</vTotTrib>
+          <ICMS>
+            <ICMS60>
+              <orig>0</orig>
+              <CST>60</CST>
+              <vBCSTRet>0.00</vBCSTRet>
+              <pST>0.00</pST>
+              <vICMSSubstituto>0.00</vICMSSubstituto>
+              <vICMSSTRet>0.00</vICMSSTRet>
+            </ICMS60>
+          </ICMS>
+          <IPI>
+            <cEnq>146</cEnq>
+            <IPINT>
+              <CST>55</CST>
+            </IPINT>
+          </IPI>
+          <PIS>
+            <PISNT>
+              <CST>04</CST>
+            </PISNT>
+          </PIS>
+          <COFINS>
+            <COFINSNT>
+              <CST>04</CST>
+            </COFINSNT>
+          </COFINS>
+        </imposto>
+        <infAdProd>
+        </infAdProd>
+      </det>
+      <total>
+        <ICMSTot>
+          <vBC>0.00</vBC>
+          <vICMS>0.00</vICMS>
+          <vICMSDeson>0.00</vICMSDeson>
+          <vFCP>0.00</vFCP>
+          <vBCST>0.00</vBCST>
+          <vST>0.00</vST>
+          <vFCPST>0.00</vFCPST>
+          <vFCPSTRet>0.00</vFCPSTRet>
+          <vProd>2600.00</vProd>
+          <vFrete>0.00</vFrete>
+          <vSeg>0.00</vSeg>
+          <vDesc>0.00</vDesc>
+          <vII>0.00</vII>
+          <vIPI>0.00</vIPI>
+          <vIPIDevol>0.00</vIPIDevol>
+          <vPIS>0.00</vPIS>
+          <vCOFINS>0.00</vCOFINS>
+          <vOutro>0.00</vOutro>
+          <vNF>2600.00</vNF>
+          <vTotTrib>506.22</vTotTrib>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>3</modFrete>
+        <transporta>
+          <CNPJ>23750102000120</CNPJ>
+          <xNome>Sulbat Dist. de Baterias e Pilhas Ltda.</xNome>
+          <IE>5184733790010</IE>
+          <xEnder>Av Joao Pinheiro</xEnder>
+          <xMun>Pocos de Caldas</xMun>
+          <UF>MG</UF>
+        </transporta>
+        <vol>
+          <qVol>4</qVol>
+          <esp>BATERIAS</esp>
+          <marca>HELIAR</marca>
+          <nVol>4</nVol>
+          <pesoL>67.600</pesoL>
+          <pesoB>67.600</pesoB>
+        </vol>
+      </transp>
+      <cobr>
+        <fat>
+          <nFat>057390</nFat>
+          <vOrig>2600.00</vOrig>
+          <vDesc>0.00</vDesc>
+          <vLiq>2600.00</vLiq>
+        </fat>
+        <dup>
+          <nDup>001</nDup>
+          <dVenc>2025-03-27</dVenc>
+          <vDup>866.66</vDup>
+        </dup>
+        <dup>
+          <nDup>002</nDup>
+          <dVenc>2025-04-26</dVenc>
+          <vDup>866.67</vDup>
+        </dup>
+        <dup>
+          <nDup>003</nDup>
+          <dVenc>2025-05-26</dVenc>
+          <vDup>866.67</vDup>
+        </dup>
+      </cobr>
+      <pag>
+        <detPag>
+          <tPag>15</tPag>
+          <vPag>866.66</vPag>
+        </detPag>
+        <detPag>
+          <tPag>15</tPag>
+          <vPag>866.67</vPag>
+        </detPag>
+        <detPag>
+          <tPag>15</tPag>
+          <vPag>866.67</vPag>
+        </detPag>
+      </pag>
+      <infAdic>
+        <infCpl>MD5: ccd116dfc933e46998f19e18f402263c  NAO GERA DIREITO A CRED. FISCAL DE ICMS EMPR.  NAO OPTANTE PELO SIMPLES NACIONAL.. CONTEM SOLUCAO ACIDA DECLARAMOS QUE TODOS OS PROD DESTA NF ESTAO EMBALADOS ADEQUADAMENTE  P/  A CARGA, DESCARGA TRANSP CONF EXIG. LEGAL  ONU2794  C  RISCO80 CLASSE 8 CORROS   Val Aprox Tributos R$ 506.22 (19,47%) Fonte: IBPT/empresometro.com.br</infCpl>
+      </infAdic>
+      <compra />
+    </infNFe>
+    <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+      <SignedInfo>
+        <CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+        <SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1" />
+        <Reference URI="#NFe31250223750102000120550010000573901705547513">
+          <Transforms>
+            <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" />
+            <Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+          </Transforms>
+          <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
+          <DigestValue>/05+1rYZSHQ0giG5iksQ4hy8k+M=</DigestValue>
+        </Reference>
+      </SignedInfo>
+      <SignatureValue>oFK87BlHYM/aLvwg2eWXQoocoTWa6a0M27YeUjuHL6o2m8TJWA0GY5BOzAY7eqrXyou1ASA7vnMVJ0omWVC9FFgP6wn/BUNBM8D9h9fHnMtjvk5N9VBnHwoZYhSxhfvQkv47yIt2B57Mi3TBlZMf35uGyqjLyPZVtPQqmKygIRVvgOV4/yJfndy7Pf0dqxJ5M9veW1GGRTCPRjtj9syC/NmnQRBja6kl602RtZ7mCSloYaALDUwb6uGYvAFbCukEz2n6my2Ts9D0YLfaNcDLTMxMmFy7xjIUwcxZKVUzSRLZ4NChEJ8sqGcioJdOIpnR/3wgHREd2kp5njGveLum6g==</SignatureValue>
+      <KeyInfo>
+        <X509Data>
+          <X509Certificate>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</X509Certificate>
+        </X509Data>
+      </KeyInfo>
+    </Signature>
+  </NFe>
+  <protNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infProt Id="ID131256498176967">
+      <tpAmb>1</tpAmb>
+      <verAplic>J-3.2.83</verAplic>
+      <chNFe>31250223750102000120550010000573901705547513</chNFe>
+      <dhRecbto>2025-02-25T16:16:05-03:00</dhRecbto>
+      <nProt>131256498176967</nProt>
+      <digVal>/05+1rYZSHQ0giG5iksQ4hy8k+M=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

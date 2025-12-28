@@ -4,6 +4,42 @@ import { db } from '@/lib/db';
 import { products, movements, importLogs } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
+interface NFeItem {
+  prod: {
+    cProd: string;
+    cEAN?: string;
+    cBarra?: string;
+    xProd: string;
+    NCM?: string;
+    CFOP?: string;
+    cst?: string;
+    vProd: string;
+    qCom: string;
+  };
+}
+
+interface PurchaseOrderItem {
+  PartNumber?: string;
+  PartNum?: string;
+  ProductName?: string;
+  ProductID?: string;
+  USPrice?: string;
+  Price?: string;
+  Quantity?: string;
+  Qty?: string;
+}
+
+interface ProductData {
+  internalCode: string;
+  barcode: string | null;
+  name: string;
+  ncm?: string;
+  cfop?: string;
+  cst?: string;
+  salePrice: number;
+  quantity: number;
+}
+
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -21,14 +57,14 @@ export async function POST(request: NextRequest) {
     const xmlContent = await file.text();
     const parsed = parser.parse(xmlContent);
 
-    // Detectar tipo de XML
-    let items: any[] = [];
+    // Detectar tipo de XML automaticamente
+    let items: (NFeItem | PurchaseOrderItem)[] = [];
     let xmlType = '';
 
-    if (parsed.NFe?.infNFe?.det) {
-      // NF-e brasileiro
+    if (parsed.nfeProc?.NFe?.infNFe?.det || parsed.NFe?.infNFe?.det) {
+      // NF-e brasileiro (pode estar dentro de nfeProc ou diretamente NFe)
       xmlType = 'NF-e';
-      const infNFe = parsed.NFe.infNFe;
+      const infNFe = parsed.nfeProc?.NFe?.infNFe || parsed.NFe?.infNFe;
       const det = infNFe.det;
       items = Array.isArray(det) ? det : [det];
     } else if (parsed.PurchaseOrders?.PurchaseOrder) {
@@ -42,13 +78,23 @@ export async function POST(request: NextRequest) {
       for (const po of purchaseOrders) {
         if (po.Items?.Item) {
           const poItems = Array.isArray(po.Items.Item) ? po.Items.Item : [po.Items.Item];
-          items.push(...poItems.map((item: any) => ({ ...item, purchaseOrder: po })));
+          items.push(...poItems.map((item: PurchaseOrderItem) => ({ ...item, purchaseOrder: po })));
         }
       }
     } else {
+      // Tentar detectar outros formatos comuns
+      const content = xmlContent.toLowerCase();
+      if (content.includes('<ofx>') || content.includes('ofxheader')) {
+        return NextResponse.json({ 
+          error: 'Arquivo OFX detectado. Este sistema importa apenas produtos de NF-e brasileiro ou XML de Purchase Orders. Arquivos OFX são extratos bancários e não contêm dados de produtos.',
+          supportedFormats: ['NF-e (brasileiro)', 'Purchase Orders (genérico)']
+        }, { status: 400 });
+      }
+
       return NextResponse.json({ 
-        error: 'Estrutura XML inválida. Esperado: NF-e brasileiro ou XML de Purchase Orders',
-        supportedFormats: ['NF-e (brasileiro)', 'Purchase Orders (genérico)']
+        error: 'Formato de arquivo não suportado. São aceitos apenas arquivos XML de NF-e brasileiro ou Purchase Orders.',
+        supportedFormats: ['NF-e (brasileiro)', 'Purchase Orders (genérico)'],
+        detectedContent: content.substring(0, 200) + '...'
       }, { status: 400 });
     }
 
@@ -60,14 +106,14 @@ export async function POST(request: NextRequest) {
 
     for (const item of items) {
       try {
-        let productData: any = {};
+        let productData: ProductData;
 
         if (xmlType === 'NF-e') {
           // Processar NF-e brasileiro
-          const prod = item.prod;
+          const prod = (item as NFeItem).prod;
           productData = {
             internalCode: prod.cProd,
-            barcode: prod.cEAN || prod.cBarra,
+            barcode: prod.cEAN || prod.cBarra || null,
             name: prod.xProd,
             ncm: prod.NCM,
             cfop: prod.CFOP,
@@ -77,13 +123,16 @@ export async function POST(request: NextRequest) {
           };
         } else if (xmlType === 'PurchaseOrders') {
           // Processar Purchase Orders genérico
+          const poItem = item as PurchaseOrderItem;
           productData = {
-            internalCode: item.PartNumber || item.PartNum,
-            barcode: item.PartNumber || item.PartNum,
-            name: item.ProductName || item.ProductID,
-            salePrice: parseFloat(item.USPrice || item.Price) || 0,
-            quantity: parseInt(item.Quantity || item.Qty) || 0
+            internalCode: poItem.PartNumber || poItem.PartNum || '',
+            barcode: poItem.PartNumber || poItem.PartNum || null,
+            name: poItem.ProductName || poItem.ProductID || '',
+            salePrice: parseFloat(poItem.USPrice || poItem.Price || '0') || 0,
+            quantity: parseInt(poItem.Quantity || poItem.Qty || '0') || 0
           };
+        } else {
+          continue; // Tipo não reconhecido, pular
         }
 
         // Procurar produto existente por barcode ou código interno
@@ -142,14 +191,11 @@ export async function POST(request: NextRequest) {
             ncm: productData.ncm,
             cfopEntry: productData.cfop,
             cst: productData.cst,
-          });
-
-          // Buscar o produto recém-criado
-          const createdProduct = await db.select().from(products).where(eq(products.barcode, productData.barcode)).limit(1);
+          }).returning({ id: products.id });
 
           // Registrar movimento
           await db.insert(movements).values({
-            productId: createdProduct[0].id,
+            productId: newProduct[0].id,
             type: 'entrada',
             quantity: productData.quantity,
             unitPrice: productData.salePrice,

@@ -35,6 +35,16 @@ interface PurchaseOrderItem {
   Qty?: string;
 }
 
+interface OFXTransaction {
+  TRNTYPE: string;
+  DTPOSTED: string;
+  TRNAMT: string;
+  FITID: string;
+  CHECKNUM?: string;
+  REFNUM?: string;
+  MEMO?: string;
+}
+
 interface ProductData {
   internalCode?: string;
   barcode?: string;
@@ -63,14 +73,14 @@ export async function POST(request: NextRequest) {
     const xmlContent = await file.text();
     const parsed = parser.parse(xmlContent);
 
-    // Detectar tipo de XML
-    let items: (NFeItem | PurchaseOrderItem)[] = [];
+    // Detectar tipo de XML automaticamente
+    let items: (NFeItem | PurchaseOrderItem | OFXTransaction)[] = [];
     let xmlType = '';
 
-    if (parsed.NFe?.infNFe?.det) {
-      // NF-e brasileiro
+    if (parsed.nfeProc?.NFe?.infNFe?.det || parsed.NFe?.infNFe?.det) {
+      // NF-e brasileiro (pode estar dentro de nfeProc ou diretamente NFe)
       xmlType = 'NF-e';
-      const infNFe = parsed.NFe.infNFe;
+      const infNFe = parsed.nfeProc?.NFe?.infNFe || parsed.NFe?.infNFe;
       const det = infNFe.det;
       items = Array.isArray(det) ? det : [det];
     } else if (parsed.PurchaseOrders?.PurchaseOrder) {
@@ -87,10 +97,27 @@ export async function POST(request: NextRequest) {
           items.push(...poItems.map((item: PurchaseOrderItem) => ({ ...item, purchaseOrder: po })));
         }
       }
-    } else {
+    } else if (parsed.OFX?.BANKMSGSRSV1?.STMTTRNRS?.STMTRS?.BANKTRANLIST?.STMTTRN) {
+      // Arquivo OFX (extrato bancário) - NÃO SUPORTADO para importação de produtos
       return NextResponse.json({
-        error: 'Estrutura XML inválida. Esperado: NF-e brasileiro ou XML de Purchase Orders',
-        supportedFormats: ['NF-e (brasileiro)', 'Purchase Orders (genérico)']
+        error: 'Arquivo OFX detectado. Este sistema importa apenas produtos de NF-e brasileiro ou XML de Purchase Orders. Arquivos OFX (extratos bancários) não contêm dados de produtos.',
+        supportedFormats: ['NF-e (brasileiro)', 'Purchase Orders (genérico)'],
+        detectedType: 'OFX (extrato bancário)'
+      }, { status: 400 });
+    } else {
+      // Tentar detectar outros formatos comuns
+      const content = xmlContent.toLowerCase();
+      if (content.includes('<ofx>')) {
+        return NextResponse.json({
+          error: 'Arquivo OFX detectado, mas formato não suportado para importação de produtos. Use apenas arquivos NF-e ou XML de produtos.',
+          supportedFormats: ['NF-e (brasileiro)', 'Purchase Orders (genérico)']
+        }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        error: 'Formato de arquivo não suportado. São aceitos apenas arquivos XML de NF-e brasileiro ou Purchase Orders.',
+        supportedFormats: ['NF-e (brasileiro)', 'Purchase Orders (genérico)'],
+        detectedContent: content.substring(0, 200) + '...'
       }, { status: 400 });
     }
 
