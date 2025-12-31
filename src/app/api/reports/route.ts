@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { movements, products } from '@/lib/db/schema';
+import { db } from '../../../lib/db'; // Caminho relativo ajustado
+import { movements, products } from '../../../lib/schema'; // Caminho relativo ajustado
 import { eq, sql, desc, and, gte, lte } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
     let dateFilter = undefined;
     if (startDate && endDate) {
       dateFilter = and(
-        gte(movements.date, new Date(startDate)),
-        lte(movements.date, new Date(endDate))
+        gte(movements.data, new Date(startDate)),
+        lte(movements.data, new Date(endDate))
       );
     }
 
@@ -22,29 +22,29 @@ export async function GET(request: NextRequest) {
     const movementsData = await db
       .select({
         id: movements.id,
-        type: movements.type,
-        quantity: movements.quantity,
-        unitPrice: movements.unitPrice,
-        date: movements.date,
-        reference: movements.reference,
+        type: movements.tipo, // Ajustado de 'type' para 'tipo'
+        quantity: movements.quantidade, // Ajustado de 'quantity' para 'quantidade'
+        unitPrice: movements.precoUnitario, // Ajustado de 'unitPrice' para 'precoUnitario'
+        date: sql<string>`DATE(${movements.data})`,
+        reference: movements.referencia,
         productName: products.name,
         productCode: products.internalCode,
       })
       .from(movements)
-      .innerJoin(products, eq(movements.productId, products.id))
+      .innerJoin(products, eq(movements.produtoId, products.id)) // Ajustado de 'productId' para 'produtoId'
       .where(dateFilter)
-      .orderBy(desc(movements.date));
+      .orderBy(desc(movements.data));
 
     // Estatísticas gerais
     const stats = await db
       .select({
         totalProducts: sql<number>`count(distinct ${products.id})`,
         totalStock: sql<number>`sum(${products.currentQuantity})`,
-        totalSales: sql<number>`sum(case when ${movements.type} = 'saida' then ${movements.quantity} else 0 end)`,
-        totalRevenue: sql<number>`sum(case when ${movements.type} = 'saida' then ${movements.quantity} * cast(${movements.unitPrice} as decimal) else 0 end)`,
+        totalSales: sql<number>`sum(case when ${movements.tipo} = 'saida' then ${movements.quantidade} else 0 end)`, // Ajustado de 'type' para 'tipo', 'quantity' para 'quantidade'
+        totalRevenue: sql<number>`sum(case when ${movements.tipo} = 'saida' then ${movements.quantidade} * cast(${movements.precoUnitario} as decimal) else 0 end)`, // Ajustado de 'type' para 'tipo', 'quantity' para 'quantidade', 'unitPrice' para 'precoUnitario'
       })
       .from(products)
-      .leftJoin(movements, eq(products.id, movements.productId))
+      .leftJoin(movements, eq(products.id, movements.produtoId)) // Ajustado de 'productId' para 'produtoId'
       .where(dateFilter);
 
     // Produtos mais vendidos
@@ -52,14 +52,14 @@ export async function GET(request: NextRequest) {
       .select({
         productName: products.name,
         productCode: products.internalCode,
-        totalSold: sql<number>`sum(${movements.quantity})`,
-        totalRevenue: sql<number>`sum(${movements.quantity} * cast(${movements.unitPrice} as decimal))`,
+        totalSold: sql<number>`sum(${movements.quantidade})`, // Ajustado de 'quantity' para 'quantidade'
+        totalRevenue: sql<number>`sum(${movements.quantidade} * cast(${movements.precoUnitario} as decimal))`, // Ajustado de 'quantity' para 'quantidade', 'unitPrice' para 'precoUnitario'
       })
       .from(movements)
-      .innerJoin(products, eq(movements.productId, products.id))
-      .where(and(eq(movements.type, 'saida'), dateFilter))
+      .innerJoin(products, eq(movements.produtoId, products.id)) // Ajustado de 'productId' para 'produtoId'
+      .where(and(eq(movements.tipo, 'saida'), dateFilter)) // Ajustado de 'type' para 'tipo'
       .groupBy(products.id, products.name, products.internalCode)
-      .orderBy(desc(sql`sum(${movements.quantity})`))
+      .orderBy(desc(sql`sum(${movements.quantidade})`)) // Ajustado de 'quantity' para 'quantidade'
       .limit(10);
 
     return NextResponse.json({

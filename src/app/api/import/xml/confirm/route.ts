@@ -1,105 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { products, movements } from '@/lib/db/schema';
+import { db } from '../../../../../lib/db';
+import { products, productBatches } from '../../../../../lib/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
-    const { previewItems, xmlType, fileName } = await request.json();
+    const { previewItems } = await request.json();
+    let created = 0, updated = 0;
 
-    if (!previewItems || !Array.isArray(previewItems)) {
-      return NextResponse.json({ error: 'Itens de prévia não fornecidos' }, { status: 400 });
-    }
-
-    const results = {
-      created: 0,
-      updated: 0,
-      errors: [] as string[],
-      movements: [] as typeof movements.$inferSelect[]
-    };
-
-    // Processar cada item da prévia
     for (const item of previewItems) {
-      try {
-        const { existing, action, ...productData } = item;
-
-        if (action === 'create') {
-          // Criar novo produto
-          await db.insert(products).values({
-            internalCode: productData.internalCode,
-            barcode: productData.barcode,
-            name: productData.name,
-            salePrice: productData.salePrice.toString(),
-            costPrice: productData.salePrice.toString(), // Usar preço de venda como custo inicial
-            currentQuantity: productData.quantity,
-            totalEntry: productData.quantity,
-            lowStockThreshold: 5, // Valor padrão
-            ncm: productData.ncm,
-            cfopEntry: productData.cfop,
-            cst: productData.cst,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          });
-
-          // Buscar o produto recém-criado
-          const createdProduct = await db.select().from(products).where(eq(products.barcode, productData.barcode)).limit(1);
-
-          // Registrar movimento de entrada
-          await db.insert(movements).values({
-            productId: createdProduct[0].id,
-            type: 'entrada',
-            quantity: productData.quantity,
-            unitPrice: productData.salePrice,
-            date: new Date(),
-            reference: `Entrada via XML import (${xmlType}) - ${fileName}`,
-            createdAt: new Date()
-          });
-
-          results.created++;
-
-        } else if (action === 'update' && existing) {
-          // Atualizar produto existente
-          const currentStock = existing.currentQuantity || 0;
-          const newStock = currentStock + productData.quantity;
-          const newTotalEntry = (existing.totalEntry || 0) + productData.quantity;
-
-          await db.update(products)
-            .set({
-              currentQuantity: newStock,
-              totalEntry: newTotalEntry,
-              salePrice: productData.salePrice.toString(), // Atualizar preço se fornecido
-              updatedAt: new Date()
-            })
-            .where(eq(products.id, existing.id));
-
-          // Registrar movimento de entrada
-          await db.insert(movements).values({
-            productId: existing.id,
-            type: 'entrada',
-            quantity: productData.quantity,
-            unitPrice: productData.salePrice,
-            date: new Date(),
-            reference: `Entrada via XML import (${xmlType}) - ${fileName}`,
-            createdAt: new Date()
-          });
-
-          results.updated++;
-        }
-
-      } catch (itemError) {
-        console.error('Erro ao processar item:', itemError);
-        results.errors.push(`Erro ao processar item ${item.internalCode || item.barcode}: ${itemError}`);
+      if (item.action === 'create') {
+        // Crie produto
+        const productId = crypto.randomUUID();
+        await db.insert(products).values({
+          id: productId,
+          internalCode: item.internalCode,
+          barcode: item.barcode,
+          name: item.name,
+          description: null,
+          salePrice: item.salePrice,
+          costPrice: item.salePrice, // Assuma custo = venda para simplificar
+          currentQuantity: item.quantity,
+          totalEntry: item.quantity,
+          totalExit: 0,
+          lastPurchaseDate: new Date(),
+          ncm: item.ncm,
+          lowStockThreshold: 5,
+        });
+        // Crie lote
+        await db.insert(productBatches).values({
+          id: crypto.randomUUID(),
+          productId,
+          purchaseDate: new Date(),
+          costPrice: item.salePrice,
+          sellingPrice: item.salePrice,
+          quantityReceived: item.quantity,
+          quantityRemaining: item.quantity,
+          xmlReference: 'NF-e Import',
+        });
+        created++;
+      } else if (item.action === 'update') {
+        // Adicione lote ao produto existente
+        await db.insert(productBatches).values({
+          id: crypto.randomUUID(),
+          productId: item.existing.id,
+          purchaseDate: new Date(),
+          costPrice: item.salePrice,
+          sellingPrice: item.salePrice,
+          quantityReceived: item.quantity,
+          quantityRemaining: item.quantity,
+          xmlReference: 'NF-e Import',
+        });
+        // Atualize totalEntry no produto
+        const current = await db.select().from(products).where(eq(products.id, item.existing.id));
+        await db.update(products).set({
+          totalEntry: current[0].totalEntry + item.quantity,
+          lastPurchaseDate: new Date(),
+        }).where(eq(products.id, item.existing.id));
+        updated++;
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Importação concluída. ${results.created} produtos criados, ${results.updated} produtos atualizados.`,
-      results
+      message: `Importação concluída: ${created} criados, ${updated} atualizados`,
+      results: { created, updated, errors: [] },
     });
-
   } catch (error) {
-    console.error('Erro ao confirmar importação XML:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    console.error('Erro na confirmação:', error);
+    return NextResponse.json({ success: false, message: 'Erro na importação' }, { status: 500 });
   }
 }

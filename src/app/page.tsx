@@ -1,10 +1,51 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Adicionado useCallback
 import Link from 'next/link';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { format, subDays } from 'date-fns'; // Removido startOfDay, endOfDay
 import { ptBR } from 'date-fns/locale';
+
+// Interface para dados de produtos necessários para estatísticas
+interface ProductForDashboardStats {
+  currentQuantity: number;
+  lowStockThreshold: number;
+}
+
+// Interface para dados de movimento retornados pela API /api/dashboard
+interface MovementApiData {
+  id: string;
+  type: 'entrada' | 'saida';
+  quantity: number;
+  unitPrice: string; // Preço unitário vem como string do decimal do banco
+  date: string; // Formato YYYY-MM-DD
+  reference: string | null;
+  productName: string; // Nome do produto do JOIN
+  productCode: string;
+}
+
+// Interface para estatísticas gerais retornadas pela API /api/dashboard
+interface DashboardApiStats {
+  totalProducts: number;
+  totalStock: number;
+  totalSales: number; // Total de quantidades vendidas
+  totalRevenue: number; // Receita total de vendas
+}
+
+// Interface para os produtos mais vendidos
+interface TopProductApiData {
+  productName: string;
+  productCode: string;
+  totalSold: number;
+  totalRevenue: number;
+}
+
+// Interface para a resposta completa da API /api/dashboard
+interface DashboardApiResponse {
+  movements: MovementApiData[];
+  stats: DashboardApiStats;
+  topProducts: TopProductApiData[];
+}
 
 interface DashboardStats {
   totalProducts: number;
@@ -47,57 +88,58 @@ export default function Home() {
   const [showPieChart, setShowPieChart] = useState(true);
   const [showBarChart, setShowBarChart] = useState(true);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [startDate, endDate]);
-
-  const fetchDashboardData = async () => {
+  // Envolvido fetchDashboardData em useCallback
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
       // Buscar produtos para estatísticas básicas
       const productsResponse = await fetch('/api/products');
-      const products = productsResponse.ok ? await productsResponse.json() : [];
+      const products = productsResponse.ok ? (await productsResponse.json() as ProductForDashboardStats[]) : []; // Tipagem explícita
 
-      // Buscar dados de relatórios para gráficos
-      const reportsResponse = await fetch(`/api/reports?startDate=${startDate}&endDate=${endDate}`);
-      const reportsData = reportsResponse.ok ? await reportsResponse.json() : { movements: [], stats: {} };
+      // Buscar dados do dashboard para gráficos e estatísticas
+      const dashboardResponse = await fetch(`/api/dashboard?startDate=${startDate}&endDate=${endDate}`);
+      const dashboardData = dashboardResponse.ok ? (await dashboardResponse.json() as DashboardApiResponse) : { movements: [], stats: {} as DashboardApiStats, topProducts: [] }; // Tipagem explícita
 
       // Calcular estatísticas
       const totalProducts = products.length;
-      const totalStock = products.reduce((sum: number, p: any) => sum + p.currentQuantity, 0);
-      const lowStockProducts = products.filter((p: any) => p.currentQuantity > 0 && p.currentQuantity <= (p.lowStockThreshold || 5)).length;
-      const outOfStockProducts = products.filter((p: any) => p.currentQuantity === 0).length;
+      const totalStock = products.reduce((sum: number, p: ProductForDashboardStats) => sum + p.currentQuantity, 0);
+      const lowStockProducts = products.filter((p: ProductForDashboardStats) => p.currentQuantity > 0 && p.currentQuantity <= (p.lowStockThreshold || 5)).length;
+      const outOfStockProducts = products.filter((p: ProductForDashboardStats) => p.currentQuantity === 0).length;
 
       // Calcular vendas totais e de hoje
       const today = format(new Date(), 'yyyy-MM-dd');
-      const todayMovements = reportsData.movements?.filter((m: any) => m.date === today && m.type === 'saida') || [];
-      const todaySales = todayMovements.reduce((sum: number, m: any) => sum + (parseFloat(m.unitPrice) * m.quantity), 0);
+      const todayMovements = dashboardData.movements?.filter((m: MovementApiData) => m.date === today && m.type === 'saida') || [];
+      const todaySales = todayMovements.reduce((sum: number, m: MovementApiData) => sum + (parseFloat(m.unitPrice) * m.quantity), 0);
 
       setStats({
         totalProducts,
         totalStock,
         lowStockProducts,
         outOfStockProducts,
-        totalSales: reportsData.stats?.totalSales || 0,
+        totalSales: dashboardData.stats?.totalSales || 0,
         todaySales
       });
 
       // Processar dados para gráficos
-      processChartData(reportsData.movements || []);
+      processChartData(dashboardData.movements || []);
 
     } catch (error) {
       console.error('Erro ao buscar dados do dashboard:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]); // Dependências de fetchDashboardData
 
-  const processChartData = (movements: any[]) => {
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]); // fetchDashboardData adicionado como dependência
+
+  const processChartData = (movements: MovementApiData[]) => { // Tipagem explícita
     // Processar dados de movimentos por data
     const dateMap = new Map<string, { entradas: number; saidas: number }>();
 
-    movements.forEach(movement => {
+    movements.forEach(movement => { // Tipado movement
       const date = movement.date;
       if (!dateMap.has(date)) {
         dateMap.set(date, { entradas: 0, saidas: 0 });
@@ -124,9 +166,9 @@ export default function Home() {
 
     // Processar dados para gráfico de pizza (categorias de produtos)
     const categoryMap = new Map<string, number>();
-    movements.forEach(movement => {
+    movements.forEach(movement => { // Tipado movement
       if (movement.type === 'saida') {
-        const category = movement.product?.name?.substring(0, 20) || 'Outros';
+        const category = movement.productName?.substring(0, 20) || 'Outros';
         const value = parseFloat(movement.unitPrice) * movement.quantity;
         categoryMap.set(category, (categoryMap.get(category) || 0) + value);
       }

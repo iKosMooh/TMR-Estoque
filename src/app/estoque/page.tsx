@@ -29,6 +29,15 @@ interface Product {
   lastPurchaseDate: string | null;
   ncm: string | null;
   lowStockThreshold: number;
+  batches: Array<{
+    id: string;
+    purchaseDate: string;
+    costPrice: string;
+    sellingPrice: string;
+    quantityReceived: number;
+    quantityRemaining: number;
+    xmlReference: string | null;
+  }>;
 }
 
 interface PreviewItem {
@@ -80,7 +89,6 @@ export default function Estoque() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<PreviewResult | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [editedImportItems, setEditedImportItems] = useState<{[key: number]: {salePrice: number; quantity: number}}>({});
   const [formData, setFormData] = useState<ProductFormData>({
     internalCode: '',
@@ -92,6 +100,9 @@ export default function Estoque() {
     currentQuantity: 0,
     lowStockThreshold: 5
   });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -183,26 +194,43 @@ export default function Estoque() {
     }
   };
 
-  const handleDeleteProduct = async (productId: string, productName: string) => {
-    if (!confirm(`Tem certeza que deseja excluir o produto "${productName}"?`)) {
-      return;
-    }
-
+  const handleDeleteProduct = async (id: string) => {
     try {
-      const response = await fetch(`/api/products?id=${productId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        toast.success('Produto excluído com sucesso!');
+      const response = await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (result.success) {
+        toast.success(result.message);
         fetchProducts();
+      } else if (result.canForce) {
+        setProductToDelete(id);
+        setShowDeleteModal(true);
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Erro ao excluir produto');
+        toast.error(result.message || 'Erro ao excluir produto');
       }
     } catch (error) {
       console.error('Erro ao excluir produto:', error);
       toast.error('Erro ao excluir produto');
+    }
+  };
+
+  const confirmDelete = async (force: boolean) => {
+    if (!force) {
+      alert('Não é possível apagar só o produto com movimentações relacionadas.');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/products?id=${productToDelete}&force=true`, { method: 'DELETE' });
+      const result = await response.json();
+      if (result.success) {
+        toast.success(result.message);
+        setShowDeleteModal(false);
+        fetchProducts();
+      } else {
+        toast.error(result.message || 'Erro ao excluir produto');
+      }
+    } catch (error) {
+      console.error('Erro ao confirmar exclusão:', error);
+      toast.error('Erro ao confirmar exclusão');
     }
   };
 
@@ -247,7 +275,6 @@ export default function Estoque() {
       const data: PreviewResult = await response.json();
       setImportPreview(data);
       setEditedImportItems({}); // Resetar edições para nova prévia
-      setImportResult(null);
     } catch (error) {
       console.error('Erro ao gerar prévia:', error);
       toast.error('Erro ao gerar prévia');
@@ -280,7 +307,7 @@ export default function Estoque() {
       });
 
       const data: ImportResult = await response.json();
-      setImportResult(data);
+      setImportPreview(data);
       if (data.success) {
         toast.success(data.message);
         setShowImportModal(false);
@@ -302,7 +329,6 @@ export default function Estoque() {
   const resetImport = () => {
     setImportFile(null);
     setImportPreview(null);
-    setImportResult(null);
     setEditedImportItems({});
   };
 
@@ -340,10 +366,14 @@ export default function Estoque() {
     (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const getStockStatus = (quantity: number) => {
+  const getStockStatus = (quantity: number, threshold: number) => {
     if (quantity === 0) return { text: 'Esgotado', color: 'text-red-600 bg-red-100' };
-    if (quantity <= 5) return { text: 'Baixo', color: 'text-yellow-600 bg-yellow-100' };
+    if (quantity <= threshold) return { text: 'Baixo', color: 'text-yellow-600 bg-yellow-100' };
     return { text: 'Normal', color: 'text-green-600 bg-green-100' };
+  };
+
+  const toggleProductDetails = (productId: string) => {
+    setExpandedProduct(expandedProduct === productId ? null : productId);
   };
 
   return (
@@ -464,17 +494,15 @@ export default function Estoque() {
                     required
                   />
                 </div>
-                {!editingProduct && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900">Quantidade Inicial</label>
-                    <input
-                      type="number"
-                      value={formData.currentQuantity}
-                      onChange={(e) => setFormData({ ...formData, currentQuantity: parseInt(e.target.value) || 0 })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-900">{editingProduct ? 'Quantidade Atual' : 'Quantidade Inicial'}</label>
+                  <input
+                    type="number"
+                    value={formData.currentQuantity}
+                    onChange={(e) => setFormData({ ...formData, currentQuantity: parseInt(e.target.value) || 0 })}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-900">Limite Estoque Baixo</label>
                   <input
@@ -535,14 +563,17 @@ export default function Estoque() {
                   </li>
                 ) : (
                   filteredProducts.map((product) => {
-                    const stockStatus = getStockStatus(product.currentQuantity);
+                    const stockStatus = getStockStatus(product.currentQuantity, product.lowStockThreshold);
+                    const isExpanded = expandedProduct === product.id;
                     return (
                       <li key={product.id} className="px-6 py-4">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center">
                               <div className="flex-1">
-                                <h3 className="text-lg font-medium text-gray-900">{product.name}</h3>
+                                <h3 className="text-lg font-medium text-gray-900 cursor-pointer" onClick={() => toggleProductDetails(product.id)}>
+                                  {product.name} {isExpanded ? '▼' : '▶'}
+                                </h3>
                                 <p className="text-sm text-gray-900">
                                   Código: {product.internalCode}
                                   {product.barcode && ` | Barras: ${product.barcode}`}
@@ -560,6 +591,18 @@ export default function Estoque() {
                                 </span>
                               </div>
                             </div>
+                            {isExpanded && product.batches.length > 0 && (
+                              <div className="mt-4 bg-gray-50 p-4 rounded">
+                                <h4 className="text-sm font-medium text-gray-900">Lotes:</h4>
+                                <ul className="mt-2 space-y-1">
+                                  {product.batches.map((batch) => (
+                                    <li key={batch.id} className="text-sm text-gray-700">
+                                      Data: {batch.purchaseDate} | Custo: R$ {parseFloat(batch.costPrice).toFixed(2)} | Venda: R$ {parseFloat(batch.sellingPrice).toFixed(2)} | Qtd Recebida: {batch.quantityReceived} | Restante: {batch.quantityRemaining}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                             <div className="mt-2 flex items-center justify-between">
                               <div className="flex space-x-4 text-sm text-gray-900">
                                 <span>Custo: R$ {parseFloat(product.costPrice).toFixed(2)}</span>
@@ -575,7 +618,7 @@ export default function Estoque() {
                                   Editar
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteProduct(product.id, product.name)}
+                                  onClick={() => handleDeleteProduct(product.id)}
                                   className="text-red-600 hover:text-red-900 text-sm font-medium"
                                 >
                                   Excluir
@@ -639,7 +682,7 @@ export default function Estoque() {
                       <dl>
                         <dt className="text-sm font-medium text-gray-900 truncate">Estoque Baixo</dt>
                         <dd className="text-lg font-medium text-gray-900">
-                          {products.filter(p => p.currentQuantity > 0 && p.currentQuantity <= 5).length}
+                          {products.filter(p => p.currentQuantity > 0 && p.currentQuantity <= p.lowStockThreshold).length}
                         </dd>
                       </dl>
                     </div>
@@ -813,6 +856,44 @@ export default function Estoque() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Exclusão */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Excluir Produto</h3>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="text-gray-900 hover:text-gray-900"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <p className="text-gray-900 mb-4">
+                Este produto possui movimentações relacionadas. O que deseja fazer?
+              </p>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => confirmDelete(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-900 hover:bg-gray-50"
+                >
+                  Apagar só o produto
+                </button>
+                <button
+                  onClick={() => confirmDelete(true)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Apagar produto e movimentações
+                </button>
+              </div>
             </div>
           </div>
         </div>

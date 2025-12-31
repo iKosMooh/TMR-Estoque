@@ -1,54 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { products, movements } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { db } from '../../../lib/db';
+import { products, productBatches } from '../../../lib/schema';
+import { eq, desc } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
-    const { productId, quantity, unitPrice } = await request.json();
-
-    if (!productId || !quantity || quantity <= 0) {
-      return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
+    const { productId, quantitySold } = await request.json();
+    if (!productId || !quantitySold || quantitySold <= 0) {
+      return NextResponse.json({ error: 'ID do produto e quantidade válida obrigatórios' }, { status: 400 });
     }
 
-    // Verificar se o produto existe e tem estoque suficiente
-    const product = await db
+    // Busque lotes ordenados por data (PEPS)
+    const batches = await db
       .select()
-      .from(products)
-      .where(eq(products.id, productId))
-      .limit(1);
+      .from(productBatches)
+      .where(eq(productBatches.productId, productId))
+      .orderBy(desc(productBatches.purchaseDate));
+    let remainingToSell = quantitySold;
+    const movements = [];
 
-    if (!product || product.length === 0) {
-      return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 });
+    for (const batch of batches) {
+      if (remainingToSell <= 0) break;
+      const deduct = Math.min(remainingToSell, batch.quantityRemaining);
+      await db
+        .update(productBatches)
+        .set({
+          quantityRemaining: batch.quantityRemaining - deduct,
+        })
+        .where(eq(productBatches.id, batch.id));
+      movements.push({ id: batch.id, type: 'exit', quantity: deduct, date: new Date().toISOString() });
+      remainingToSell -= deduct;
     }
 
-    if (product[0].currentQuantity < quantity) {
+    if (remainingToSell > 0) {
       return NextResponse.json({ error: 'Estoque insuficiente' }, { status: 400 });
     }
 
-    // Registrar movimento de saída
-    await db.insert(movements).values({
-      productId,
-      type: 'saida',
-      quantity,
-      unitPrice: (unitPrice || parseFloat(product[0].salePrice)).toString(),
-      date: new Date(),
-      reference: 'Venda direta',
-    });
-
-    // Atualizar quantidade do produto
+    // Atualize totalExit no produto
+    const product = await db.select().from(products).where(eq(products.id, productId));
     await db
       .update(products)
       .set({
-        totalExit: product[0].totalExit + quantity,
-        currentQuantity: product[0].currentQuantity - quantity,
-        updatedAt: new Date(),
+        totalExit: product[0].totalExit + quantitySold,
       })
       .where(eq(products.id, productId));
 
-    return NextResponse.json({ message: 'Venda registrada com sucesso' });
+    return NextResponse.json({
+      success: true,
+      message: `Venda realizada: ${quantitySold} unidades`,
+      movements,
+    });
   } catch (error) {
-    console.error('Erro ao registrar venda:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    console.error('Erro na venda:', error);
+    return NextResponse.json({ error: 'Erro na venda' }, { status: 500 });
   }
 }

@@ -22,7 +22,7 @@ export const products = mysqlTable('products', {
   totalEntry: int('qtd_entrada_total').default(0).notNull(),
   totalExit: int('qtd_saida_total').default(0).notNull(),
   currentQuantity: int('qtd_atual').default(0).notNull(),
-  lowStockThreshold: int('estoque_baixo_limite').default(5).notNull(),
+  lowStockThreshold: int('low_stock_threshold').default(1).notNull(),
   lastPurchaseDate: date('data_ultima_compra'),
   ncm: varchar('ncm', { length: 20 }),
   cfopEntry: varchar('cfop_entrada', { length: 10 }),
@@ -58,6 +58,17 @@ export const alerts = mysqlTable('alerts', {
   message: text('message').notNull(),
   isActive: int('is_active').default(1).notNull(),
   createdAt: datetime('created_at').default(new Date()).notNull(),
+});
+
+export const sales = mysqlTable('sales', {
+  id: varchar('id', { length: 191 }).primaryKey(),
+  productId: varchar('product_id', { length: 191 }).notNull().references(() => products.id),
+  quantity: int('quantity').notNull(),
+  unitPrice: varchar('unit_price', { length: 255 }).notNull(),
+  totalPrice: varchar('total_price', { length: 255 }).notNull(),
+  date: datetime('date').notNull(),
+  status: varchar('status', { length: 50 }).default('active').notNull(), // 'active' or 'cancelled'
+  userId: varchar('user_id', { length: 191 }).notNull(),
 });
 
 // Relations

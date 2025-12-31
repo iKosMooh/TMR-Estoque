@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "e2ba6394-2d01-4ddd-a1f7-b45f582c6c5f",
-  "prevId": "b3804e7d-383c-4ee0-8215-9aec7a57abe0",
+  "id": "c978dd7e-1832-4687-adf2-1a450d076098",
+  "prevId": "14be5088-f283-47a1-92dd-5ca8088be583",
   "tables": {
     "alerts": {
       "name": "alerts",
@@ -32,7 +32,7 @@
           "name": "is_active",
           "type": "int",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false,
           "default": 1
         },
@@ -40,27 +40,13 @@
           "name": "created_at",
           "type": "datetime",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false,
-          "default": "'2025-12-11 14:52:10.256'"
+          "default": "NOW()"
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "alerts_produto_id_products_id_fk": {
-          "name": "alerts_produto_id_products_id_fk",
-          "tableFrom": "alerts",
-          "tableTo": "products",
-          "columnsFrom": [
-            "produto_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "alerts_id": {
           "name": "alerts_id",
@@ -94,8 +80,7 @@
           "type": "datetime",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'2025-12-11 14:52:10.256'"
+          "autoincrement": false
         },
         "total_itens": {
           "name": "total_itens",
@@ -144,7 +129,7 @@
         },
         "tipo": {
           "name": "tipo",
-          "type": "enum('entrada','saida')",
+          "type": "varchar(10)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -160,71 +145,102 @@
           "name": "preco_unitario",
           "type": "decimal(10,2)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "data": {
           "name": "data",
-          "type": "date",
+          "type": "datetime",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "referencia": {
           "name": "referencia",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "usuario_id": {
-          "name": "usuario_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "datetime",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'2025-12-11 14:52:10.256'"
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "movements_produto_id_products_id_fk": {
-          "name": "movements_produto_id_products_id_fk",
-          "tableFrom": "movements",
-          "tableTo": "products",
-          "columnsFrom": [
-            "produto_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "movements_usuario_id_users_id_fk": {
-          "name": "movements_usuario_id_users_id_fk",
-          "tableFrom": "movements",
-          "tableTo": "users",
-          "columnsFrom": [
-            "usuario_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "movements_id": {
           "name": "movements_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "product_batches": {
+      "name": "product_batches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "purchase_date": {
+          "name": "purchase_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cost_price": {
+          "name": "cost_price",
+          "type": "decimal(10,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "selling_price": {
+          "name": "selling_price",
+          "type": "decimal(10,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity_received": {
+          "name": "quantity_received",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity_remaining": {
+          "name": "quantity_remaining",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "xml_reference": {
+          "name": "xml_reference",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "product_batches_id": {
+          "name": "product_batches_id",
           "columns": [
             "id"
           ]
@@ -238,21 +254,21 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(36)",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "codigo_interno": {
           "name": "codigo_interno",
-          "type": "varchar(100)",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "barcode": {
           "name": "barcode",
-          "type": "varchar(100)",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -285,88 +301,47 @@
           "notNull": true,
           "autoincrement": false
         },
+        "qtd_atual": {
+          "name": "qtd_atual",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "qtd_entrada_total": {
           "name": "qtd_entrada_total",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
         },
         "qtd_saida_total": {
           "name": "qtd_saida_total",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "qtd_atual": {
-          "name": "qtd_atual",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "estoque_baixo_limite": {
-          "name": "estoque_baixo_limite",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 5
+          "autoincrement": false
         },
         "data_ultima_compra": {
           "name": "data_ultima_compra",
-          "type": "date",
+          "type": "datetime",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "ncm": {
           "name": "ncm",
-          "type": "varchar(20)",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "cfop_entrada": {
-          "name": "cfop_entrada",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cst": {
-          "name": "cst",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "fornecedor_id": {
-          "name": "fornecedor_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "datetime",
+        "estoque_baixo_limite": {
+          "name": "estoque_baixo_limite",
+          "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'2025-12-11 14:52:10.256'"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "datetime",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'2025-12-11 14:52:10.256'"
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -379,14 +354,66 @@
           ]
         }
       },
-      "uniqueConstraints": {
-        "products_codigo_interno_unique": {
-          "name": "products_codigo_interno_unique",
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "sales": {
+      "name": "sales",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "price": {
+          "name": "price",
+          "type": "decimal(10,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "date": {
+          "name": "date",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "sales_id": {
+          "name": "sales_id",
           "columns": [
-            "codigo_interno"
+            "id"
           ]
         }
       },
+      "uniqueConstraints": {},
       "checkConstraint": {}
     },
     "users": {
@@ -424,7 +451,7 @@
           "name": "role",
           "type": "enum('admin','user')",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false,
           "default": "'user'"
         },
@@ -432,17 +459,17 @@
           "name": "created_at",
           "type": "datetime",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false,
-          "default": "'2025-12-11 14:52:10.255'"
+          "default": "NOW()"
         },
         "updated_at": {
           "name": "updated_at",
           "type": "datetime",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false,
-          "default": "'2025-12-11 14:52:10.255'"
+          "default": "NOW()"
         }
       },
       "indexes": {},
@@ -455,14 +482,7 @@
           ]
         }
       },
-      "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
-          "columns": [
-            "email"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "checkConstraint": {}
     }
   },
@@ -470,7 +490,9 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"movements\".\"product_id\"": "\"movements\".\"produto_id\""
+    }
   },
   "internal": {
     "tables": {},
