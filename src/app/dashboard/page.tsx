@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import { fetchChartsData } from '@/lib/api'; // Ajuste o caminho conforme necessário
 
