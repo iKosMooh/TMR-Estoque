@@ -15,6 +15,15 @@ interface ProductFormData {
   lowStockThreshold: number;
 }
 
+interface BatchFormData {
+  id: string;
+  costPrice: string;
+  sellingPrice: string;
+  quantityReceived: number;
+  quantityRemaining: number;
+  purchaseDate: string;
+}
+
 interface Product {
   id: string;
   internalCode: string;
@@ -103,6 +112,8 @@ export default function Estoque() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [editingBatch, setEditingBatch] = useState<BatchFormData | null>(null);
+  const [showBatchModal, setShowBatchModal] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -250,6 +261,74 @@ export default function Estoque() {
   const cancelEdit = () => {
     setEditingProduct(null);
     resetForm();
+  };
+
+  const handleEditBatch = (batch: Product['batches'][0]) => {
+    setEditingBatch({
+      id: batch.id,
+      costPrice: batch.costPrice,
+      sellingPrice: batch.sellingPrice,
+      quantityReceived: batch.quantityReceived,
+      quantityRemaining: batch.quantityRemaining,
+      purchaseDate: batch.purchaseDate,
+    });
+    setShowBatchModal(true);
+  };
+
+  const handleUpdateBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBatch) return;
+
+    try {
+      const response = await fetch('/api/batches', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editingBatch),
+      });
+
+      if (response.ok) {
+        toast.success('Lote atualizado com sucesso!');
+        setShowBatchModal(false);
+        setEditingBatch(null);
+        fetchProducts();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Erro ao atualizar lote');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar lote:', error);
+      toast.error('Erro ao atualizar lote');
+    }
+  };
+
+  const cancelBatchEdit = () => {
+    setShowBatchModal(false);
+    setEditingBatch(null);
+  };
+
+  const handleDeleteBatch = async (batchId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este lote? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/batches/${batchId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('Lote excluído com sucesso!');
+        fetchProducts();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Erro ao excluir lote');
+      }
+    } catch (error) {
+      console.error('Erro ao excluir lote:', error);
+      toast.error('Erro ao excluir lote');
+    }
   };
 
   const handleImportPreview = async (e: React.FormEvent) => {
@@ -593,14 +672,39 @@ export default function Estoque() {
                             </div>
                             {isExpanded && product.batches.length > 0 && (
                               <div className="mt-4 bg-gray-50 p-4 rounded">
-                                <h4 className="text-sm font-medium text-gray-900">Lotes:</h4>
-                                <ul className="mt-2 space-y-1">
+                                <h4 className="text-sm font-medium text-gray-900 mb-3">Lotes:</h4>
+                                <div className="space-y-2">
                                   {product.batches.map((batch) => (
-                                    <li key={batch.id} className="text-sm text-gray-700">
-                                      Data: {batch.purchaseDate} | Custo: R$ {parseFloat(batch.costPrice).toFixed(2)} | Venda: R$ {parseFloat(batch.sellingPrice).toFixed(2)} | Qtd Recebida: {batch.quantityReceived} | Restante: {batch.quantityRemaining}
-                                    </li>
+                                    <div key={batch.id} className="flex items-center justify-between bg-white p-3 rounded border border-gray-200">
+                                      <div className="text-sm text-gray-700">
+                                        <span className="font-medium">Data:</span> {batch.purchaseDate} | 
+                                        <span className="font-medium"> Custo:</span> R$ {parseFloat(batch.costPrice).toFixed(2)} | 
+                                        <span className="font-medium"> Venda:</span> R$ {parseFloat(batch.sellingPrice).toFixed(2)} | 
+                                        <span className="font-medium"> Qtd Recebida:</span> {batch.quantityReceived} | 
+                                        <span className="font-medium"> Restante:</span> {batch.quantityRemaining}
+                                      </div>
+                                      <div className="flex space-x-2">
+                                        <button
+                                          onClick={() => handleEditBatch(batch)}
+                                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                                        >
+                                          Editar
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteBatch(batch.id)}
+                                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                                        >
+                                          Excluir
+                                        </button>
+                                      </div>
+                                    </div>
                                   ))}
-                                </ul>
+                                </div>
+                              </div>
+                            )}
+                            {isExpanded && product.batches.length === 0 && (
+                              <div className="mt-4 bg-gray-50 p-4 rounded">
+                                <p className="text-sm text-gray-500">Nenhum lote disponível para este produto.</p>
                               </div>
                             )}
                             <div className="mt-2 flex items-center justify-between">
@@ -856,6 +960,98 @@ export default function Estoque() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Lote */}
+      {showBatchModal && editingBatch && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Editar Lote</h3>
+                <button
+                  onClick={cancelBatchEdit}
+                  className="text-gray-900 hover:text-gray-700"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateBatch} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900">Data de Compra</label>
+                    <input
+                      type="date"
+                      value={editingBatch.purchaseDate}
+                      onChange={(e) => setEditingBatch({ ...editingBatch, purchaseDate: e.target.value })}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900">Preço de Custo</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editingBatch.costPrice}
+                      onChange={(e) => setEditingBatch({ ...editingBatch, costPrice: e.target.value })}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900">Preço de Venda</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editingBatch.sellingPrice}
+                      onChange={(e) => setEditingBatch({ ...editingBatch, sellingPrice: e.target.value })}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900">Quantidade Recebida</label>
+                    <input
+                      type="number"
+                      value={editingBatch.quantityReceived}
+                      onChange={(e) => setEditingBatch({ ...editingBatch, quantityReceived: parseInt(e.target.value) || 0 })}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900">Quantidade Restante</label>
+                    <input
+                      type="number"
+                      value={editingBatch.quantityRemaining}
+                      onChange={(e) => setEditingBatch({ ...editingBatch, quantityRemaining: parseInt(e.target.value) || 0 })}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={cancelBatchEdit}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-900 hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Atualizar Lote
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
