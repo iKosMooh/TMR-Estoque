@@ -1,38 +1,53 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react'; // Adicionado useCallback
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, subDays } from 'date-fns'; // Removido startOfDay, endOfDay
+import { 
+  PieChart, Pie, Cell, 
+  BarChart, Bar, 
+  LineChart, Line, 
+  AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+} from 'recharts';
+import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Navigation } from '@/components/Navigation';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
+import { LoadingState } from '@/components/Loading';
+import { Animated } from '@/components/Animated';
+import { 
+  DocumentReportIcon, 
+  TrendingUpIcon, 
+  TrendingDownIcon,
+  ChartBarIcon,
+  PackageIcon 
+} from '@/components/Icons';
 
-// Interface para dados de produtos necessários para estatísticas
+// Interfaces para dados de produtos necessários para estatísticas
 interface ProductForDashboardStats {
   currentQuantity: number;
   lowStockThreshold: number;
 }
 
-// Interface para dados de movimento retornados pela API /api/dashboard
 interface MovementApiData {
   id: string;
   type: 'entrada' | 'saida';
   quantity: number;
-  unitPrice: string; // Preço unitário vem como string do decimal do banco
-  date: string; // Formato YYYY-MM-DD
+  unitPrice: string;
+  date: string;
   reference: string | null;
-  productName: string; // Nome do produto do JOIN
+  productName: string;
   productCode: string;
 }
 
-// Interface para estatísticas gerais retornadas pela API /api/dashboard
 interface DashboardApiStats {
   totalProducts: number;
   totalStock: number;
-  totalSales: number; // Total de quantidades vendidas
-  totalRevenue: number; // Receita total de vendas
+  totalSales: number;
+  totalRevenue: number;
 }
 
-// Interface para os produtos mais vendidos
 interface TopProductApiData {
   productName: string;
   productCode: string;
@@ -40,7 +55,6 @@ interface TopProductApiData {
   totalRevenue: number;
 }
 
-// Interface para a resposta completa da API /api/dashboard
 interface DashboardApiResponse {
   movements: MovementApiData[];
   stats: DashboardApiStats;
@@ -67,7 +81,14 @@ interface CategoryData {
   name: string;
   value: number;
   color: string;
-  [key: string]: any;
+  [key: string]: string | number;
+}
+
+interface TimelineMovement {
+  date: string;
+  entradas: number;
+  saidas: number;
+  saldo: number;
 }
 
 export default function Home() {
@@ -81,25 +102,24 @@ export default function Home() {
   });
   const [movementData, setMovementData] = useState<MovementData[]>([]);
   const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
+  const [timelineMovements, setTimelineMovements] = useState<TimelineMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [showCharts, setShowCharts] = useState(true);
-  const [showPieChart, setShowPieChart] = useState(true);
-  const [showBarChart, setShowBarChart] = useState(true);
+  const [reportPeriod, setReportPeriod] = useState<'7d' | '30d' | '90d'>('30d');
+  const [activeSection, setActiveSection] = useState<'overview' | 'reports'>('overview');
 
-  // Envolvido fetchDashboardData em useCallback
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
       // Buscar produtos para estatísticas básicas
       const productsResponse = await fetch('/api/products');
-      const products = productsResponse.ok ? (await productsResponse.json() as ProductForDashboardStats[]) : []; // Tipagem explícita
+      const products = productsResponse.ok ? (await productsResponse.json() as ProductForDashboardStats[]) : [];
 
-      // Buscar dados do dashboard para gráficos e estatísticas
+      // Buscar dados do dashboard
       const dashboardResponse = await fetch(`/api/dashboard?startDate=${startDate}&endDate=${endDate}`);
-      const dashboardData = dashboardResponse.ok ? (await dashboardResponse.json() as DashboardApiResponse) : { movements: [], stats: {} as DashboardApiStats, topProducts: [] }; // Tipagem explícita
+      const dashboardData = dashboardResponse.ok ? (await dashboardResponse.json() as DashboardApiResponse) : { movements: [], stats: {} as DashboardApiStats, topProducts: [] };
 
       // Calcular estatísticas
       const totalProducts = products.length;
@@ -107,7 +127,7 @@ export default function Home() {
       const lowStockProducts = products.filter((p: ProductForDashboardStats) => p.currentQuantity > 0 && p.currentQuantity <= (p.lowStockThreshold || 5)).length;
       const outOfStockProducts = products.filter((p: ProductForDashboardStats) => p.currentQuantity === 0).length;
 
-      // Calcular vendas totais e de hoje
+      // Calcular vendas
       const today = format(new Date(), 'yyyy-MM-dd');
       const todayMovements = dashboardData.movements?.filter((m: MovementApiData) => m.date === today && m.type === 'saida') || [];
       const todaySales = todayMovements.reduce((sum: number, m: MovementApiData) => sum + (parseFloat(m.unitPrice) * m.quantity), 0);
@@ -129,17 +149,17 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]); // Dependências de fetchDashboardData
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]); // fetchDashboardData adicionado como dependência
+  }, [fetchDashboardData]);
 
-  const processChartData = (movements: MovementApiData[]) => { // Tipagem explícita
+  const processChartData = (movements: MovementApiData[]) => {
     // Processar dados de movimentos por data
     const dateMap = new Map<string, { entradas: number; saidas: number }>();
 
-    movements.forEach(movement => { // Tipado movement
+    movements.forEach(movement => {
       const date = movement.date;
       if (!dateMap.has(date)) {
         dateMap.set(date, { entradas: 0, saidas: 0 });
@@ -164,9 +184,9 @@ export default function Home() {
 
     setMovementData(movementChartData);
 
-    // Processar dados para gráfico de pizza (categorias de produtos)
+    // Processar dados para gráfico de pizza
     const categoryMap = new Map<string, number>();
-    movements.forEach(movement => { // Tipado movement
+    movements.forEach(movement => {
       if (movement.type === 'saida') {
         const category = movement.productName?.substring(0, 20) || 'Outros';
         const value = parseFloat(movement.unitPrice) * movement.quantity;
@@ -177,7 +197,7 @@ export default function Home() {
     const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff0000', '#0000ff', '#ffff00'];
     const categoryChartData: CategoryData[] = Array.from(categoryMap.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 8) // Top 8 categorias
+      .slice(0, 8)
       .map(([name, value], index) => ({
         name,
         value,
@@ -185,166 +205,197 @@ export default function Home() {
       }));
 
     setCategoryData(categoryChartData);
+
+    // Processar dados para gráficos de linha e área (relatórios)
+    let saldo = 0;
+    const timelineData: TimelineMovement[] = Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, values]) => {
+        saldo += values.entradas - values.saidas;
+        return {
+          date: new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          entradas: Math.round(values.entradas),
+          saidas: Math.round(values.saidas),
+          saldo: Math.round(saldo),
+        };
+      });
+
+    setTimelineMovements(timelineData);
   };
 
+  const totals = timelineMovements.reduce(
+    (acc, mov) => ({
+      entradas: acc.entradas + mov.entradas,
+      saidas: acc.saidas + mov.saidas,
+    }),
+    { entradas: 0, saidas: 0 }
+  );
+
+  if (loading) {
+    return (
+      <>
+        <Navigation />
+        <LoadingState message="Carregando dashboard..." />
+      </>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-xl font-bold text-gray-900">TMR Auto Elétrica</h1>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link href="/" className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Dashboard
-                </Link>
-                <Link href="/estoque" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Estoque
-                </Link>
-                <Link href="/vendas" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Vendas
-                </Link>
-                <Link href="/relatorios" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Relatórios
-                </Link>
-              </div>
-            </div>
+    <>
+      <Navigation />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen bg-background transition-colors">
+        {/* Cabeçalho */}
+        <Animated animation="fade-in">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard</h1>
+            <p className="text-muted-foreground">Visão geral do seu estoque e análises detalhadas</p>
           </div>
-        </div>
-      </nav>
+        </Animated>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Dashboard</h1>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-500 rounded"></div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-900 truncate">Estoque Total</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.totalStock}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-green-500 rounded"></div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-900 truncate">Vendas Hoje</dt>
-                      <dd className="text-lg font-medium text-gray-900">R$ {stats.todaySales.toFixed(2)}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-yellow-500 rounded"></div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-900 truncate">Produtos Baixo Estoque</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.lowStockProducts}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-red-500 rounded"></div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-900 truncate">Produtos Esgotados</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.outOfStockProducts}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Navegação entre seções */}
+        <Animated animation="slide-down" delay={100}>
+          <div className="flex gap-4 mb-8">
+            <button
+              onClick={() => setActiveSection('overview')}
+              className={`flex items-center gap-2 px-6 py-3 font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 ${
+                activeSection === 'overview'
+                  ? 'bg-gradient-to-r from-blue-400 to-purple-500 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
+              }`}
+            >
+              <ChartBarIcon className="w-5 h-5" />
+              Visão Geral
+            </button>
+            <button
+              onClick={() => setActiveSection('reports')}
+              className={`flex items-center gap-2 px-6 py-3 font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 ${
+                activeSection === 'reports'
+                  ? 'bg-gradient-to-r from-blue-400 to-purple-500 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
+              }`}
+            >
+              <DocumentReportIcon className="w-5 h-5" />
+              Relatórios Avançados
+            </button>
           </div>
+        </Animated>
 
-          {/* Controles de Filtros e Gráficos */}
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Análises e Gráficos</h2>
-              <button
-                onClick={() => setShowCharts(!showCharts)}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-              >
-                {showCharts ? 'Ocultar Gráficos' : 'Mostrar Gráficos'}
-              </button>
+        {/* Seção: Visão Geral */}
+        {activeSection === 'overview' && (
+          <>
+            {/* Cards de Estatísticas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Animated animation="slide-up" delay={0}>
+                <Card className="bg-gradient-to-br from-blue-400 to-blue-500 border-none shadow-xl hover:shadow-2xl transition-all">
+                  <Card.Body>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-blue-50 mb-1">Estoque Total</p>
+                        <p className="text-4xl font-bold text-white">{stats.totalStock}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
+                        <PackageIcon className="w-8 h-8 text-white" />
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Animated>
+
+              <Animated animation="slide-up" delay={100}>
+                <Card className="bg-gradient-to-br from-emerald-400 to-emerald-500 border-none shadow-xl hover:shadow-2xl transition-all">
+                  <Card.Body>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-emerald-50 mb-1">Vendas Hoje</p>
+                        <p className="text-4xl font-bold text-white">
+                          R$ {Number(stats.todaySales || 0).toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
+                        <TrendingUpIcon className="w-8 h-8 text-white" />
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Animated>
+
+              <Animated animation="slide-up" delay={200}>
+                <Card className="bg-gradient-to-br from-orange-400 to-orange-500 border-none shadow-xl hover:shadow-2xl transition-all">
+                  <Card.Body>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-orange-50 mb-1">Baixo Estoque</p>
+                        <p className="text-4xl font-bold text-white">{stats.lowStockProducts}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
+                        <TrendingDownIcon className="w-8 h-8 text-white" />
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Animated>
+
+              <Animated animation="slide-up" delay={300}>
+                <Card className="bg-gradient-to-br from-red-400 to-red-500 border-none shadow-xl hover:shadow-2xl transition-all">
+                  <Card.Body>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-red-50 mb-1">Esgotados</p>
+                        <p className="text-4xl font-bold text-white">{stats.outOfStockProducts}</p>
+                      </div>
+                      <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
+                        <TrendingDownIcon className="w-8 h-8 text-white" />
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Animated>
             </div>
 
             {/* Filtros de Data */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">Data Inicial</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">Data Final</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <div className="flex items-end space-x-2">
-                <button
-                  onClick={() => setShowPieChart(!showPieChart)}
-                  className={`px-3 py-2 rounded text-sm ${showPieChart ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-900'}`}
-                >
-                  {showPieChart ? 'Ocultar Pizza' : 'Mostrar Pizza'}
-                </button>
-                <button
-                  onClick={() => setShowBarChart(!showBarChart)}
-                  className={`px-3 py-2 rounded text-sm ${showBarChart ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-900'}`}
-                >
-                  {showBarChart ? 'Ocultar Barras' : 'Mostrar Barras'}
-                </button>
-              </div>
-            </div>
+            <Animated animation="slide-down" delay={400}>
+              <Card className="mb-8 bg-level-1">
+                <Card.Body>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-2">Data Inicial</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full px-4 py-2 border border-input rounded-lg bg-background text-card-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-2">Data Final</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full px-4 py-2 border border-input rounded-lg bg-background text-card-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button onClick={fetchDashboardData} className="w-full">
+                        Atualizar Dados
+                      </Button>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Animated>
 
-            {showCharts && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Gráfico de Pizza - Vendas por Categoria */}
-                {showPieChart && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-md font-medium text-gray-900 mb-4">Vendas por Produto (Top 8)</h3>
-                    {loading ? (
-                      <div className="flex justify-center items-center h-64">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-                      </div>
-                    ) : categoryData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
+            {/* Gráficos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Gráfico de Pizza */}
+              <Animated animation="scale" delay={500}>
+                <Card className="bg-level-1">
+                  <Card.Header>
+                    <h2 className="text-xl font-bold text-card-foreground">Vendas por Produto</h2>
+                  </Card.Header>
+                  <Card.Body>
+                    {categoryData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={350}>
                         <PieChart>
                           <Pie
                             data={categoryData}
@@ -352,7 +403,7 @@ export default function Home() {
                             cy="50%"
                             labelLine={false}
                             label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                            outerRadius={80}
+                            outerRadius={100}
                             fill="#8884d8"
                             dataKey="value"
                           >
@@ -360,61 +411,229 @@ export default function Home() {
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
-                          <Tooltip formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Valor']} />
+                          <Tooltip 
+                            formatter={(value: number | undefined) => [`R$ ${(value || 0).toFixed(2)}`, 'Valor']} 
+                            contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                          />
                         </PieChart>
                       </ResponsiveContainer>
                     ) : (
-                      <div className="flex justify-center items-center h-64 text-gray-900">
-                        Nenhum dado disponível para o período selecionado
+                      <div className="flex justify-center items-center h-64 text-gray-500 dark:text-gray-400">
+                        Nenhum dado disponível
                       </div>
                     )}
-                  </div>
-                )}
+                  </Card.Body>
+                </Card>
+              </Animated>
 
-                {/* Gráfico de Barras - Movimentos por Data */}
-                {showBarChart && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-md font-medium text-gray-900 mb-4">Entradas vs Saídas por Data</h3>
-                    {loading ? (
-                      <div className="flex justify-center items-center h-64">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-                      </div>
-                    ) : movementData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
+              {/* Gráfico de Barras */}
+              <Animated animation="scale" delay={600}>
+                <Card className="bg-level-1">
+                  <Card.Header>
+                    <h2 className="text-xl font-bold text-card-foreground">Entradas vs Saídas</h2>
+                  </Card.Header>
+                  <Card.Body>
+                    {movementData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={350}>
                         <BarChart data={movementData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" />
-                          <YAxis />
-                          <Tooltip formatter={(value: number) => [`R$ ${value.toFixed(2)}`, '']} />
+                          <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />
+                          <XAxis dataKey="date" className="dark:fill-gray-400" />
+                          <YAxis className="dark:fill-gray-400" />
+                          <Tooltip 
+                            formatter={(value: number | undefined) => [`R$ ${(value || 0).toFixed(2)}`, '']} 
+                            contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                          />
                           <Legend />
                           <Bar dataKey="entradas" fill="#82ca9d" name="Entradas" />
                           <Bar dataKey="saidas" fill="#8884d8" name="Saídas" />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <div className="flex justify-center items-center h-64 text-gray-900">
-                        Nenhum movimento encontrado no período selecionado
+                      <div className="flex justify-center items-center h-64 text-gray-500 dark:text-gray-400">
+                        Nenhum movimento encontrado
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Ações Rápidas</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Link href="/estoque" className="bg-green-500 text-white px-4 py-2 rounded text-center hover:bg-green-600">
-                Gerenciar Estoque
-              </Link>
-              <Link href="/vendas" className="bg-purple-500 text-white px-4 py-2 rounded text-center hover:bg-purple-600">
-                Registrar Venda
-              </Link>
+                  </Card.Body>
+                </Card>
+              </Animated>
             </div>
-          </div>
-        </div>
+
+            {/* Ações Rápidas */}
+            <Animated animation="slide-up" delay={700}>
+              <Card className="bg-level-1">
+                <Card.Header>
+                  <h2 className="text-xl font-bold text-card-foreground">Ações Rápidas</h2>
+                </Card.Header>
+                <Card.Body>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Link href="/estoque">
+                      <button className="w-full px-6 py-3 text-white font-semibold rounded-lg bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95">
+                        📦 Gerenciar Estoque
+                      </button>
+                    </Link>
+                    <Link href="/vendas">
+                      <button className="w-full px-6 py-3 text-white font-semibold rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95">
+                        💰 Registrar Venda
+                      </button>
+                    </Link>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Animated>
+          </>
+        )}
+
+        {/* Seção: Relatórios Avançados */}
+        {activeSection === 'reports' && (
+          <>
+            {/* Filtros de Período */}
+            <Animated animation="slide-down" delay={100}>
+              <Card className="mb-6 bg-level-1">
+                <Card.Body>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Período:</span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={reportPeriod === '7d' ? 'primary' : 'secondary'}
+                        onClick={() => setReportPeriod('7d')}
+                        size="sm"
+                      >
+                        7 Dias
+                      </Button>
+                      <Button
+                        variant={reportPeriod === '30d' ? 'primary' : 'secondary'}
+                        onClick={() => setReportPeriod('30d')}
+                        size="sm"
+                      >
+                        30 Dias
+                      </Button>
+                      <Button
+                        variant={reportPeriod === '90d' ? 'primary' : 'secondary'}
+                        onClick={() => setReportPeriod('90d')}
+                        size="sm"
+                      >
+                        90 Dias
+                      </Button>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Animated>
+
+            {/* Cards de Resumo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <Animated animation="slide-up" delay={0}>
+                <Card>
+                  <Card.Body>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-1">Total de Entradas</p>
+                        <p className="text-2xl font-bold text-success">{totals.entradas}</p>
+                      </div>
+                      <div className="p-3 bg-success/10 rounded-lg">
+                        <TrendingUpIcon className="w-8 h-8 text-success" aria-hidden={true} />
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Animated>
+
+              <Animated animation="slide-up" delay={100}>
+                <Card>
+                  <Card.Body>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-1">Total de Saídas</p>
+                        <p className="text-2xl font-bold text-error">{totals.saidas}</p>
+                      </div>
+                      <div className="p-3 bg-error/10 rounded-lg">
+                        <TrendingDownIcon className="w-8 h-8 text-error" aria-hidden={true} />
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Animated>
+
+              <Animated animation="slide-up" delay={200}>
+                <Card>
+                  <Card.Body>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-1">Saldo Líquido</p>
+                        <p className={`text-2xl font-bold ${totals.entradas - totals.saidas >= 0 ? 'text-success' : 'text-error'}`}>
+                          {totals.entradas - totals.saidas}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-info/10 rounded-lg">
+                        <DocumentReportIcon className="w-8 h-8 text-info" aria-hidden={true} />
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Animated>
+            </div>
+
+            {/* Gráfico de Linha - Movimentações ao Longo do Tempo */}
+            <Animated animation="scale" delay={300}>
+              <Card className="mb-8 bg-level-1">
+                <Card.Header>
+                  <h2 className="text-xl font-bold text-card-foreground">Movimentações ao Longo do Tempo</h2>
+                </Card.Header>
+                <Card.Body>
+                  {timelineMovements.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={400}>
+                      <LineChart data={timelineMovements}>
+                        <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />
+                        <XAxis dataKey="date" className="dark:fill-gray-400" />
+                        <YAxis className="dark:fill-gray-400" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} 
+                        />
+                        <Legend />
+                        <Line type="monotone" dataKey="entradas" stroke="#10b981" name="Entradas" strokeWidth={2} />
+                        <Line type="monotone" dataKey="saidas" stroke="#ef4444" name="Saídas" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex justify-center items-center h-64 text-gray-500 dark:text-gray-400">
+                      Nenhum dado disponível
+                    </div>
+                  )}
+                </Card.Body>
+              </Card>
+            </Animated>
+
+            {/* Gráfico de Área - Saldo Acumulado */}
+            <Animated animation="scale" delay={400}>
+              <Card>
+                <Card.Header>
+                  <h2 className="text-xl font-bold text-card-foreground">Saldo Acumulado</h2>
+                </Card.Header>
+                <Card.Body>
+                  {timelineMovements.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={400}>
+                      <AreaChart data={timelineMovements}>
+                        <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />
+                        <XAxis dataKey="date" className="dark:fill-gray-400" />
+                        <YAxis className="dark:fill-gray-400" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }} 
+                        />
+                        <Legend />
+                        <Area type="monotone" dataKey="saldo" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} name="Saldo" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex justify-center items-center h-64 text-gray-500 dark:text-gray-400">
+                      Nenhum dado disponível
+                    </div>
+                  )}
+                </Card.Body>
+              </Card>
+            </Animated>
+          </>
+        )}
       </main>
-    </div>
+    </>
   );
 }

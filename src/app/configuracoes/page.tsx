@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
+import { Navigation } from '@/components/Navigation';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
+import { CogIcon, ExclamationIcon } from '@/components/Icons';
 
 export default function ConfiguracoesPage() {
   const [isResetting, setIsResetting] = useState(false);
@@ -41,44 +44,24 @@ export default function ConfiguracoesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <Link href="/" className="text-xl font-bold text-gray-900">TMR Auto Elétrica</Link>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link href="/" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Dashboard
-                </Link>
-                <Link href="/estoque" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Estoque
-                </Link>
-                <Link href="/vendas" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Vendas
-                </Link>
-                <Link href="/relatorios" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Relatórios
-                </Link>
-                <Link href="/configuracoes" className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Configurações
-                </Link>
-              </div>
-            </div>
-          </div>
+    <>
+      <Navigation />
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+            <CogIcon className="w-8 h-8 mr-3 text-blue-600" aria-hidden={true} />
+            Configurações do Sistema
+          </h1>
+          <p className="text-gray-600">Gerencie as configurações e dados do sistema</p>
         </div>
-      </nav>
 
-      <main className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Configurações do Sistema</h1>
-
-          <div className="space-y-6">
-            {/* Seção de Configurações Gerais */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Configurações Gerais</h2>
+        <div className="space-y-6">
+          {/* Seção de Configurações Gerais */}
+          <Card>
+            <Card.Header>
+              <h2 className="text-lg font-medium text-gray-900">Configurações Gerais</h2>
+            </Card.Header>
+            <Card.Body>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-900 mb-2">
@@ -90,18 +73,20 @@ export default function ConfiguracoesPage() {
                   </p>
                 </div>
               </div>
-            </div>
+            </Card.Body>
+          </Card>
 
-            {/* Seção de Dados */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Gerenciamento de Dados</h2>
+          {/* Seção de Dados */}
+          <Card>
+            <Card.Header>
+              <h2 className="text-lg font-medium text-gray-900">Gerenciamento de Dados</h2>
+            </Card.Header>
+            <Card.Body>
               <div className="space-y-4">
-                <div className="border-l-4 border-red-500 bg-red-50 p-4">
+                <div className="border-l-4 border-red-500 bg-red-50 p-4 rounded-r-md">
                   <div className="flex">
                     <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
+                      <ExclamationIcon className="h-5 w-5 text-red-400" aria-hidden={true} />
                     </div>
                     <div className="ml-3">
                       <h3 className="text-sm font-medium text-red-800">
@@ -118,57 +103,47 @@ export default function ConfiguracoesPage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <button
+                  <Button
                     onClick={handleResetAllData}
                     disabled={isResetting}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center space-x-2"
+                    variant="danger"
+                    isLoading={isResetting}
                   >
-                    {isResetting ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>Resetando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        <span>Resetar Todos os Dados</span>
-                      </>
-                    )}
-                  </button>
+                    {isResetting ? 'Resetando...' : 'Resetar Todos os Dados'}
+                  </Button>
                 </div>
               </div>
-            </div>
+            </Card.Body>
+          </Card>
 
-            {/* Seção de Informações */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Informações do Sistema</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Seção de Informações */}
+          <Card>
+            <Card.Header>
+              <h2 className="text-lg font-medium text-gray-900">Informações do Sistema</h2>
+            </Card.Header>
+            <Card.Body>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900">Versão</h3>
-                  <p className="text-sm text-gray-600">TMR Auto Elétrica v1.0.0</p>
+                  <h3 className="text-sm font-medium text-gray-900 mb-1">Versão</h3>
+                  <p className="text-sm text-gray-600">Estoque Simples v1.0.0</p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900">Banco de Dados</h3>
+                  <h3 className="text-sm font-medium text-gray-900 mb-1">Banco de Dados</h3>
                   <p className="text-sm text-gray-600">MySQL com Drizzle ORM</p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900">Framework</h3>
+                  <h3 className="text-sm font-medium text-gray-900 mb-1">Framework</h3>
                   <p className="text-sm text-gray-600">Next.js 16 com TypeScript</p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900">UI</h3>
+                  <h3 className="text-sm font-medium text-gray-900 mb-1">UI</h3>
                   <p className="text-sm text-gray-600">Tailwind CSS</p>
                 </div>
               </div>
-            </div>
-          </div>
+            </Card.Body>
+          </Card>
         </div>
       </main>
-    </div>
+    </>
   );
 }

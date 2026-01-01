@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { products, movements, alerts } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // Resetar na ordem correta devido às foreign keys
     // Primeiro excluir alerts (que referenciam products)

@@ -1,8 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
+import { Navigation } from '@/components/Navigation';
+import { SearchBar } from '@/components/SearchBar';
+import { Button } from '@/components/Button';
+import { LoadingState } from '@/components/Loading';
+import { EmptyState } from '@/components/EmptyState';
+import { Modal } from '@/components/Modal';
 
 interface ProductFormData {
   internalCode: string;
@@ -92,9 +97,10 @@ export default function Estoque() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<PreviewResult | null>(null);
   const [importing, setImporting] = useState(false);
@@ -109,11 +115,16 @@ export default function Estoque() {
     currentQuantity: 0,
     lowStockThreshold: 5
   });
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [editingBatch, setEditingBatch] = useState<BatchFormData | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showDeleteBatchModal, setShowDeleteBatchModal] = useState(false);
+  const [batchToDelete, setBatchToDelete] = useState<string | null>(null);
+  const [productIdForBatchDelete, setProductIdForBatchDelete] = useState<string | null>(null);
+  const [deleteProductAfterBatch, setDeleteProductAfterBatch] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -147,7 +158,7 @@ export default function Estoque() {
 
       if (response.ok) {
         toast.success('Produto adicionado com sucesso!');
-        setShowAddForm(false);
+        setShowAddProductModal(false);
         resetForm();
         fetchProducts();
       } else {
@@ -160,6 +171,7 @@ export default function Estoque() {
     }
   };
 
+  // Funções de edição/exclusão de produtos
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
     setFormData({
@@ -172,6 +184,7 @@ export default function Estoque() {
       currentQuantity: product.currentQuantity,
       lowStockThreshold: product.lowStockThreshold
     });
+    setShowEditProductModal(true);
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
@@ -193,6 +206,7 @@ export default function Estoque() {
       if (response.ok) {
         toast.success('Produto atualizado com sucesso!');
         setEditingProduct(null);
+        setShowEditProductModal(false);
         resetForm();
         fetchProducts();
       } else {
@@ -260,6 +274,12 @@ export default function Estoque() {
 
   const cancelEdit = () => {
     setEditingProduct(null);
+    setShowEditProductModal(false);
+    resetForm();
+  };
+
+  const cancelAdd = () => {
+    setShowAddProductModal(false);
     resetForm();
   };
 
@@ -308,27 +328,65 @@ export default function Estoque() {
     setEditingBatch(null);
   };
 
-  const handleDeleteBatch = async (batchId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este lote? Esta ação não pode ser desfeita.')) {
-      return;
-    }
+  const handleDeleteBatch = (batchId: string, productId: string) => {
+    // Encontra o produto para verificar se tem mais lotes
+    const product = products.find(p => p.id === productId);
+    const willDeleteProduct = product ? product.batches.length === 1 : false;
+
+    setBatchToDelete(batchId);
+    setProductIdForBatchDelete(productId);
+    setDeleteProductAfterBatch(willDeleteProduct);
+    setShowDeleteBatchModal(true);
+  };
+
+  const executeDeleteBatch = async () => {
+    if (!batchToDelete || !productIdForBatchDelete) return;
 
     try {
-      const response = await fetch(`/api/batches/${batchId}`, {
+      // Primeiro, excluir o lote
+      const batchResponse = await fetch(`/api/batches/${batchToDelete}`, {
         method: 'DELETE',
       });
 
-      if (response.ok) {
-        toast.success('Lote excluído com sucesso!');
-        fetchProducts();
-      } else {
-        const error = await response.json();
+      if (!batchResponse.ok) {
+        const error = await batchResponse.json();
         toast.error(error.error || 'Erro ao excluir lote');
+        return;
       }
+
+      // Se é o último lote do produto, perguntar sobre excluir o produto
+      if (deleteProductAfterBatch) {
+        const productResponse = await fetch(`/api/products/${productIdForBatchDelete}`, {
+          method: 'DELETE',
+        });
+
+        if (productResponse.ok) {
+          toast.success('Lote e produto excluídos com sucesso!');
+        } else {
+          toast.success('Lote excluído com sucesso, mas houve erro ao excluir o produto');
+        }
+      } else {
+        toast.success('Lote excluído com sucesso!');
+      }
+
+      // Recarregar produtos
+      fetchProducts();
+      setShowDeleteBatchModal(false);
+      setBatchToDelete(null);
+      setProductIdForBatchDelete(null);
+      setDeleteProductAfterBatch(false);
+
     } catch (error) {
       console.error('Erro ao excluir lote:', error);
       toast.error('Erro ao excluir lote');
     }
+  };
+
+  const cancelDeleteBatch = () => {
+    setShowDeleteBatchModal(false);
+    setBatchToDelete(null);
+    setProductIdForBatchDelete(null);
+    setDeleteProductAfterBatch(false);
   };
 
   const handleImportPreview = async (e: React.FormEvent) => {
@@ -445,10 +503,10 @@ export default function Estoque() {
     (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const getStockStatus = (quantity: number, threshold: number) => {
-    if (quantity === 0) return { text: 'Esgotado', color: 'text-red-600 bg-red-100' };
-    if (quantity <= threshold) return { text: 'Baixo', color: 'text-yellow-600 bg-yellow-100' };
-    return { text: 'Normal', color: 'text-green-600 bg-green-100' };
+  const getStockStatus = (quantity: number, threshold: number): { text: string; variant: 'success' | 'warning' | 'danger'; color: string } => {
+    if (quantity === 0) return { text: 'Esgotado', variant: 'danger', color: '#dc2626' }; // vermelho
+    if (quantity <= threshold) return { text: 'Baixo', variant: 'warning', color: '#d97706' }; // amarelo/laranja
+    return { text: 'Normal', variant: 'success', color: '#16a34a' }; // verde
   };
 
   const toggleProductDetails = (productId: string) => {
@@ -456,227 +514,101 @@ export default function Estoque() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <Link href="/" className="text-xl font-bold text-gray-900">TMR Auto Elétrica</Link>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link href="/" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Dashboard
-                </Link>
-                <Link href="/estoque" className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Estoque
-                </Link>
-                <Link href="/vendas" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Vendas
-                </Link>
-                <Link href="/relatorios" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Relatórios
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-background text-foreground transition-colors">
+      <Navigation />
 
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main id="main-content" className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Gerenciamento de Estoque</h1>
-            <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
+            <h1 className="text-4xl font-bold text-foreground">Gerenciamento de Estoque</h1>
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setShowImportModal(true)}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+                aria-label="Importar arquivo XML de nota fiscal"
               >
-                Importar XML
+                📄 Importar XML
               </button>
               <button
-                onClick={() => setShowAddForm(!showAddForm)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                onClick={() => setShowAddProductModal(true)}
+                className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+                aria-label="Adicionar novo produto"
               >
-                {showAddForm ? 'Cancelar' : 'Adicionar Produto'}
+                ➕ Adicionar Produto
               </button>
             </div>
           </div>
 
           {/* Barra de Pesquisa */}
           <div className="mb-6">
-            <input
-              type="text"
-              placeholder="Buscar por nome, código interno ou código de barras..."
+            <SearchBar
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              onChange={setSearchTerm}
+              placeholder="Buscar por nome, código interno ou código de barras..."
             />
           </div>
 
-          {/* Formulário de Adição/Edição */}
-          {(showAddForm || editingProduct) && (
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
-                {editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}
-              </h2>
-              <form onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">Nome do Produto</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">Código Interno</label>
-                  <input
-                    type="text"
-                    value={formData.internalCode}
-                    onChange={(e) => setFormData({ ...formData, internalCode: e.target.value })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">Código de Barras</label>
-                  <input
-                    type="text"
-                    value={formData.barcode}
-                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">Preço de Venda</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.salePrice}
-                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">Preço de Custo</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.costPrice}
-                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">{editingProduct ? 'Quantidade Atual' : 'Quantidade Inicial'}</label>
-                  <input
-                    type="number"
-                    value={formData.currentQuantity}
-                    onChange={(e) => setFormData({ ...formData, currentQuantity: parseInt(e.target.value) || 0 })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900">Limite Estoque Baixo</label>
-                  <input
-                    type="number"
-                    value={formData.lowStockThreshold}
-                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: parseInt(e.target.value) || 5 })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    min="0"
-                    placeholder="5"
-                  />
-                  <p className="mt-1 text-sm text-gray-600">Quantidade mínima para alertar estoque baixo (padrão: 5)</p>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-900">Descrição</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    rows={3}
-                  />
-                </div>
-                <div className="md:col-span-2 flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={editingProduct ? cancelEdit : () => setShowAddForm(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-900 hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    {editingProduct ? 'Atualizar Produto' : 'Salvar Produto'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
           {/* Lista de Produtos */}
           {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-              <p className="mt-4 text-gray-900">Carregando produtos...</p>
-            </div>
+            <LoadingState message="Carregando produtos..." />
           ) : (
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <ul className="divide-y divide-gray-200">
+            <div className="bg-level-1 shadow-lg overflow-hidden sm:rounded-lg">
+              <ul className="divide-y divide-border" role="list">
                 {filteredProducts.length === 0 ? (
                   <li className="px-6 py-12 text-center">
-                    <p className="text-gray-900">Nenhum produto encontrado.</p>
-                    {searchTerm && (
-                      <p className="text-sm text-gray-900 mt-1">
-                        Tente ajustar os termos de busca.
-                      </p>
-                    )}
+                    <EmptyState
+                      title="Nenhum produto encontrado"
+                      description={searchTerm ? 'Tente ajustar os termos de busca ou adicione novos produtos.' : 'Comece adicionando seu primeiro produto ao estoque.'}
+                      action={
+                        !searchTerm && (
+                          <Button onClick={() => setShowAddProductModal(true)} variant="primary">
+                            Adicionar Primeiro Produto
+                          </Button>
+                        )
+                      }
+                    />
                   </li>
                 ) : (
                   filteredProducts.map((product) => {
                     const stockStatus = getStockStatus(product.currentQuantity, product.lowStockThreshold);
                     const isExpanded = expandedProduct === product.id;
                     return (
-                      <li key={product.id} className="px-6 py-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center">
-                              <div className="flex-1">
-                                <h3 className="text-lg font-medium text-gray-900 cursor-pointer" onClick={() => toggleProductDetails(product.id)}>
-                                  {product.name} {isExpanded ? '▼' : '▶'}
-                                </h3>
-                                <p className="text-sm text-gray-900">
-                                  Código: {product.internalCode}
-                                  {product.barcode && ` | Barras: ${product.barcode}`}
-                                </p>
-                                {product.description && (
-                                  <p className="text-sm text-gray-900 mt-1">{product.description}</p>
-                                )}
+                      <li key={product.id} className="px-3 py-3 bg-level-2 hover:bg-level-3 hover:scale-[1.02] transition-all duration-200 rounded-lg cursor-pointer" onClick={() => toggleProductDetails(product.id)}>
+                        <div className="bg-card rounded-md p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <div className="flex-1">
+                                  <h3 className="text-lg font-semibold text-foreground cursor-pointer hover:text-primary transition-colors" onClick={() => toggleProductDetails(product.id)}>
+                                    {product.name} {isExpanded ? '▼' : '▶'}
+                                  </h3>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    Código: {product.internalCode}
+                                    {product.barcode && ` | Barras: ${product.barcode}`}
+                                  </p>
+                                  {product.description && (
+                                    <p className="text-sm text-muted-foreground mt-2">{product.description}</p>
+                                  )}
+                                </div>
+                                <div className="ml-4 flex flex-col items-end space-y-1">
+                                  <span
+                                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white shadow-sm"
+                                    style={{ backgroundColor: stockStatus.color }}
+                                  >
+                                    {stockStatus.text}
+                                  </span>
+                                  <span className="text-sm font-semibold text-foreground">
+                                    Qtd: {product.currentQuantity}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="ml-4 flex flex-col items-end space-y-1">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stockStatus.color}`}>
-                                  {stockStatus.text}
-                                </span>
-                                <span className="text-sm text-gray-900">
-                                  Qtd: {product.currentQuantity}
-                                </span>
-                              </div>
-                            </div>
                             {isExpanded && product.batches.length > 0 && (
-                              <div className="mt-4 bg-gray-50 p-4 rounded">
-                                <h4 className="text-sm font-medium text-gray-900 mb-3">Lotes:</h4>
+                              <div className="mt-4 bg-level-3 p-4 rounded-lg">
+                                <h4 className="text-sm font-semibold text-foreground mb-3">Lotes:</h4>
                                 <div className="space-y-2">
                                   {product.batches.map((batch) => (
-                                    <div key={batch.id} className="flex items-center justify-between bg-white p-3 rounded border border-gray-200">
-                                      <div className="text-sm text-gray-700">
+                                    <div key={batch.id} className="flex items-center justify-between bg-level-2 p-3 rounded-md hover:bg-level-3 transition-colors">
+                                      <div className="text-sm text-muted-foreground">
                                         <span className="font-medium">Data:</span> {batch.purchaseDate} | 
                                         <span className="font-medium"> Custo:</span> R$ {parseFloat(batch.costPrice).toFixed(2)} | 
                                         <span className="font-medium"> Venda:</span> R$ {parseFloat(batch.sellingPrice).toFixed(2)} | 
@@ -686,15 +618,15 @@ export default function Estoque() {
                                       <div className="flex space-x-2">
                                         <button
                                           onClick={() => handleEditBatch(batch)}
-                                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                                          className="px-4 py-1.5 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
                                         >
-                                          Editar
+                                          ✏️ Editar Lote
                                         </button>
                                         <button
-                                          onClick={() => handleDeleteBatch(batch.id)}
-                                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                                          onClick={() => handleDeleteBatch(batch.id, product.id)}
+                                          className="px-4 py-1.5 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-red-700 to-pink-700 hover:from-red-600 hover:to-pink-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
                                         >
-                                          Excluir
+                                          🗑️ Excluir Lote
                                         </button>
                                       </div>
                                     </div>
@@ -703,31 +635,36 @@ export default function Estoque() {
                               </div>
                             )}
                             {isExpanded && product.batches.length === 0 && (
-                              <div className="mt-4 bg-gray-50 p-4 rounded">
-                                <p className="text-sm text-gray-500">Nenhum lote disponível para este produto.</p>
+                              <div className="mt-4 bg-level-1 p-4 rounded-lg">
+                                <p className="text-sm text-muted-foreground">Nenhum lote disponível para este produto.</p>
                               </div>
                             )}
-                            <div className="mt-2 flex items-center justify-between">
-                              <div className="flex space-x-4 text-sm text-gray-900">
+                            <div className="mt-2">
+                              <div className="flex space-x-4 text-sm text-muted-foreground font-medium">
                                 <span>Custo: R$ {parseFloat(product.costPrice).toFixed(2)}</span>
                                 <span>Venda: R$ {parseFloat(product.salePrice).toFixed(2)}</span>
                                 <span>Entradas: {product.totalEntry}</span>
                                 <span>Saídas: {product.totalExit}</span>
                               </div>
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => handleEditProduct(product)}
-                                  className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteProduct(product.id)}
-                                  className="text-red-600 hover:text-red-900 text-sm font-medium"
-                                >
-                                  Excluir
-                                </button>
-                              </div>
+                              {isExpanded && (
+                                <div className="flex justify-end space-x-2 mt-3">
+                                  <button
+                                    onClick={() => handleEditProduct(product)}
+                                    className="px-3 py-1 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                                    title="Editar produto"
+                                  >
+                                    Editar Item
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(product.id)}
+                                    className="px-3 py-1 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-red-700 to-pink-700 hover:from-red-600 hover:to-pink-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                                    title="Excluir produto"
+                                  >
+                                    Excluir Item
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                             </div>
                           </div>
                         </div>
@@ -742,109 +679,109 @@ export default function Estoque() {
           {/* Estatísticas */}
           {!loading && (
             <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blue-500 rounded"></div>
+              <div className="bg-card border border-border rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 border-2 border-blue-500 rounded flex items-center justify-center">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-900 truncate">Total de Produtos</dt>
-                        <dd className="text-lg font-medium text-gray-900">{products.length}</dd>
-                      </dl>
-                    </div>
+                  </div>
+                  <div className="ml-5 w-0 flex-1">
+                    <dl>
+                      <dt className="text-sm font-medium text-muted-foreground truncate">Total de Produtos</dt>
+                      <dd className="text-2xl font-bold text-foreground">{products.length}</dd>
+                    </dl>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-green-500 rounded"></div>
+              <div className="bg-card border border-border rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 border-2 border-green-500 rounded flex items-center justify-center">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-900 truncate">Em Estoque</dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {products.reduce((sum, p) => sum + p.currentQuantity, 0)}
-                        </dd>
-                      </dl>
-                    </div>
+                  </div>
+                  <div className="ml-5 w-0 flex-1">
+                    <dl>
+                      <dt className="text-sm font-medium text-muted-foreground truncate">Em Estoque</dt>
+                      <dd className="text-2xl font-bold text-foreground">
+                        {products.reduce((sum, p) => sum + p.currentQuantity, 0)}
+                      </dd>
+                    </dl>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-yellow-500 rounded"></div>
+              <div className="bg-card border border-border rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 border-2 border-yellow-500 rounded flex items-center justify-center">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-900 truncate">Estoque Baixo</dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {products.filter(p => p.currentQuantity > 0 && p.currentQuantity <= p.lowStockThreshold).length}
-                        </dd>
-                      </dl>
-                    </div>
+                  </div>
+                  <div className="ml-5 w-0 flex-1">
+                    <dl>
+                      <dt className="text-sm font-medium text-muted-foreground truncate">Estoque Baixo</dt>
+                      <dd className="text-2xl font-bold text-foreground">
+                        {products.filter(p => p.currentQuantity > 0 && p.currentQuantity <= p.lowStockThreshold).length}
+                      </dd>
+                    </dl>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-red-500 rounded"></div>
+              <div className="bg-card border border-border rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 border-2 border-red-500 rounded flex items-center justify-center">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-900 truncate">Esgotados</dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {products.filter(p => p.currentQuantity === 0).length}
-                        </dd>
-                      </dl>
-                    </div>
+                  </div>
+                  <div className="ml-5 w-0 flex-1">
+                    <dl>
+                      <dt className="text-sm font-medium text-muted-foreground truncate">Esgotados</dt>
+                      <dd className="text-2xl font-bold text-foreground">
+                        {products.filter(p => p.currentQuantity === 0).length}
+                      </dd>
+                    </dl>
                   </div>
                 </div>
               </div>
             </div>
           )}
         </div>
-      </div>
+      </main>
 
       {/* Modal de Importação */}
       {showImportModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-4xl shadow-lg rounded-lg bg-card">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Importar XML NF-e</h3>
+                <h3 className="text-lg font-medium text-card-foreground">Importar XML NF-e</h3>
                 <button
                   onClick={() => {
                     setShowImportModal(false);
                     resetImport();
                   }}
-                  className="text-gray-900 hover:text-gray-900"
+                  className="text-card-foreground hover:text-muted-foreground"
                 >
                   <span className="text-2xl">&times;</span>
                 </button>
               </div>
 
               {!importPreview && (
-                <form onSubmit={handleImportPreview} className="space-y-4">
+                <form onSubmit={handleImportPreview} className=" space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                    <label className="block text-sm font-medium text-card-foreground mb-2">
                       Selecione o arquivo XML
                     </label>
                     <input
                       type="file"
                       accept=".xml"
                       onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      className="block w-full text-sm text-card-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                       required
                     />
                   </div>
@@ -855,14 +792,14 @@ export default function Estoque() {
                         setShowImportModal(false);
                         resetImport();
                       }}
-                      className="px-4 py-2 border border-gray-300 rounded-md text-gray-900 hover:bg-gray-50"
+                      className="px-4 py-2 border border-border rounded-md text-card-foreground hover:bg-accent"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
                       disabled={!importFile || importing}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
                     >
                       {importing ? 'Gerando prévia...' : 'Gerar Prévia'}
                     </button>
@@ -872,40 +809,40 @@ export default function Estoque() {
 
               {importPreview && (
                 <div className="space-y-6">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Prévia da Importação</h4>
-                    <p className="text-gray-900"><strong className="text-gray-900">Tipo de XML:</strong> {importPreview.xmlType}</p>
-                    <p className="text-gray-900"><strong className="text-gray-900">Arquivo:</strong> {importPreview.fileName}</p>
-                    <p className="text-gray-900"><strong className="text-gray-900">Total de itens:</strong> {importPreview.totalItems}</p>
+                  <div className="bg-accent p-4 rounded-lg">
+                    <h4 className="text-lg font-semibold text-card-foreground mb-2">Prévia da Importação</h4>
+                    <p className="text-card-foreground"><strong className="text-card-foreground">Tipo de XML:</strong> {importPreview.xmlType}</p>
+                    <p className="text-card-foreground"><strong className="text-card-foreground">Arquivo:</strong> {importPreview.fileName}</p>
+                    <p className="text-card-foreground"><strong className="text-card-foreground">Total de itens:</strong> {importPreview.totalItems}</p>
                   </div>
 
-                  <div className="bg-white border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                  <div className="bg-card border border-border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
                     <table className="w-full">
-                      <thead className="bg-gray-50 sticky top-0">
+                      <thead className="bg-muted sticky top-0">
                         <tr>
-                          <th className="px-4 py-2 text-left text-gray-900 font-medium">Código</th>
-                          <th className="px-4 py-2 text-left text-gray-900 font-medium">Nome</th>
-                          <th className="px-4 py-2 text-left text-gray-900 font-medium">Preço</th>
-                          <th className="px-4 py-2 text-left text-gray-900 font-medium">Quantidade</th>
-                          <th className="px-4 py-2 text-left text-gray-900 font-medium">Ação</th>
-                          <th className="px-4 py-2 text-left text-gray-900 font-medium">Status</th>
+                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Código</th>
+                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Nome</th>
+                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Preço</th>
+                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Quantidade</th>
+                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Ação</th>
+                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {importPreview.previewItems.map((item, index) => (
-                          <tr key={index} className="border-t">
-                            <td className="px-4 py-2 text-gray-900">{item.internalCode || item.barcode}</td>
-                            <td className="px-4 py-2 text-gray-900">{item.name}</td>
+                          <tr key={index} className="border-t border-border">
+                            <td className="px-4 py-2 text-card-foreground">{item.internalCode || item.barcode}</td>
+                            <td className="px-4 py-2 text-card-foreground">{item.name}</td>
                             <td className="px-4 py-2">
                               <div className="flex items-center">
-                                <span className="mr-2 text-gray-900">R$</span>
+                                <span className="mr-2 text-card-foreground">R$</span>
                                 <input
                                   type="number"
                                   step="0.01"
                                   min="0"
                                   value={getEditedImportPrice(index, item.salePrice).toFixed(2)}
                                   onChange={(e) => handleImportPriceChange(index, e.target.value)}
-                                  className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  className="w-28 px-2 py-1 border border-input rounded text-sm text-card-foreground bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
                                   placeholder="0.00"
                                 />
                               </div>
@@ -917,24 +854,24 @@ export default function Estoque() {
                                 step="1"
                                 value={getEditedImportQuantity(index, item.quantity)}
                                 onChange={(e) => handleImportQuantityChange(index, e.target.value)}
-                                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="w-24 px-2 py-1 border border-input rounded text-sm text-card-foreground bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
                                 placeholder="0"
                               />
                             </td>
                             <td className="px-4 py-2">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                item.action === 'create' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                                item.action === 'create' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                               }`}>
                                 {item.action === 'create' ? 'Criar' : 'Atualizar'}
                               </span>
                             </td>
                             <td className="px-4 py-2">
                               {item.existing ? (
-                                <span className="text-orange-700 text-sm font-medium">
+                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
                                   Produto existente (estoque atual: {item.existing.currentQuantity || 0})
                                 </span>
                               ) : (
-                                <span className="text-green-700 text-sm font-medium">Novo produto</span>
+                                <span className="text-green-700 dark:text-green-300 text-sm font-medium">Novo produto</span>
                               )}
                             </td>
                           </tr>
@@ -946,14 +883,14 @@ export default function Estoque() {
                   <div className="flex justify-end space-x-3">
                     <button
                       onClick={() => setImportPreview(null)}
-                      className="px-4 py-2 border border-gray-300 rounded-md text-gray-900 hover:bg-gray-50"
+                      className="px-4 py-2 border border-border rounded-md text-card-foreground hover:bg-accent"
                     >
                       Voltar
                     </button>
                     <button
                       onClick={handleConfirmImport}
                       disabled={importing}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
                     >
                       {importing ? 'Importando...' : 'Confirmar Importação'}
                     </button>
@@ -967,14 +904,14 @@ export default function Estoque() {
 
       {/* Modal de Edição de Lote */}
       {showBatchModal && editingBatch && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border border-border w-11/12 max-w-2xl shadow-lg rounded-lg bg-card">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Editar Lote</h3>
+                <h3 className="text-lg font-medium text-card-foreground">Editar Lote</h3>
                 <button
                   onClick={cancelBatchEdit}
-                  className="text-gray-900 hover:text-gray-700"
+                  className="text-card-foreground hover:text-muted-foreground"
                 >
                   <span className="text-2xl">&times;</span>
                 </button>
@@ -983,54 +920,54 @@ export default function Estoque() {
               <form onSubmit={handleUpdateBatch} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-900">Data de Compra</label>
+                    <label className="block text-sm font-medium text-card-foreground">Data de Compra</label>
                     <input
                       type="date"
                       value={editingBatch.purchaseDate}
                       onChange={(e) => setEditingBatch({ ...editingBatch, purchaseDate: e.target.value })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      className="mt-1 block w-full border border-input rounded-md shadow-sm bg-background text-card-foreground focus:ring-2 focus:ring-ring focus:border-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900">Preço de Custo</label>
+                    <label className="block text-sm font-medium text-card-foreground">Preço de Custo</label>
                     <input
                       type="number"
                       step="0.01"
                       value={editingBatch.costPrice}
                       onChange={(e) => setEditingBatch({ ...editingBatch, costPrice: e.target.value })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      className="mt-1 block w-full border border-input rounded-md shadow-sm bg-background text-card-foreground focus:ring-2 focus:ring-ring focus:border-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900">Preço de Venda</label>
+                    <label className="block text-sm font-medium text-card-foreground">Preço de Venda</label>
                     <input
                       type="number"
                       step="0.01"
                       value={editingBatch.sellingPrice}
                       onChange={(e) => setEditingBatch({ ...editingBatch, sellingPrice: e.target.value })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      className="mt-1 block w-full border border-input rounded-md shadow-sm bg-background text-card-foreground focus:ring-2 focus:ring-ring focus:border-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900">Quantidade Recebida</label>
+                    <label className="block text-sm font-medium text-card-foreground">Quantidade Recebida</label>
                     <input
                       type="number"
                       value={editingBatch.quantityReceived}
                       onChange={(e) => setEditingBatch({ ...editingBatch, quantityReceived: parseInt(e.target.value) || 0 })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      className="mt-1 block w-full border border-input rounded-md shadow-sm bg-background text-card-foreground focus:ring-2 focus:ring-ring focus:border-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900">Quantidade Restante</label>
+                    <label className="block text-sm font-medium text-card-foreground">Quantidade Restante</label>
                     <input
                       type="number"
                       value={editingBatch.quantityRemaining}
                       onChange={(e) => setEditingBatch({ ...editingBatch, quantityRemaining: parseInt(e.target.value) || 0 })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      className="mt-1 block w-full border border-input rounded-md shadow-sm bg-background text-card-foreground focus:ring-2 focus:ring-ring focus:border-ring"
                       required
                     />
                   </div>
@@ -1040,13 +977,13 @@ export default function Estoque() {
                   <button
                     type="button"
                     onClick={cancelBatchEdit}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-900 hover:bg-gray-50"
+                    className="px-4 py-2 border border-border rounded-md text-card-foreground hover:bg-accent"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
                   >
                     Atualizar Lote
                   </button>
@@ -1059,33 +996,33 @@ export default function Estoque() {
 
       {/* Modal de Exclusão */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border border-border w-11/12 max-w-md shadow-lg rounded-lg bg-card">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Excluir Produto</h3>
+                <h3 className="text-lg font-medium text-card-foreground">Excluir Produto</h3>
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="text-gray-900 hover:text-gray-900"
+                  className="text-card-foreground hover:text-muted-foreground"
                 >
                   <span className="text-2xl">&times;</span>
                 </button>
               </div>
 
-              <p className="text-gray-900 mb-4">
+              <p className="text-card-foreground mb-4">
                 Este produto possui movimentações relacionadas. O que deseja fazer?
               </p>
 
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => confirmDelete(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-900 hover:bg-gray-50"
+                  className="px-4 py-2 border border-border rounded-md text-card-foreground hover:bg-accent"
                 >
                   Apagar só o produto
                 </button>
                 <button
                   onClick={() => confirmDelete(true)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90"
                 >
                   Apagar produto e movimentações
                 </button>
@@ -1095,7 +1032,317 @@ export default function Estoque() {
         </div>
       )}
 
-      <Toaster position="top-right" />
+      {/* Modal de Exclusão de Lote */}
+      <Modal
+        isOpen={showDeleteBatchModal}
+        onClose={cancelDeleteBatch}
+        title="Confirmar Exclusão de Lote"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <svg className="w-6 h-6 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-card-foreground mb-2">
+                Tem certeza que deseja excluir este lote?
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                Esta ação não pode ser desfeita. O lote será removido permanentemente do sistema.
+              </p>
+
+              {deleteProductAfterBatch && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
+                  <div className="flex items-start space-x-3">
+                    <svg className="w-5 h-5 text-destructive mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <h4 className="font-medium text-destructive mb-1">
+                        Este é o último lote do produto
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        Ao excluir este lote, o produto também será removido do sistema.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-border">
+            <button
+              onClick={cancelDeleteBatch}
+              className="px-4 py-2 border border-border rounded-md text-card-foreground hover:bg-accent transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={executeDeleteBatch}
+              className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
+            >
+              {deleteProductAfterBatch ? 'Excluir Lote e Produto' : 'Excluir Lote'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de Adição de Produto */}
+      {showAddProductModal && (
+        <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-2xl shadow-lg rounded-lg bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-foreground">Adicionar Novo Produto</h3>
+                <button
+                  onClick={cancelAdd}
+                  className="text-foreground hover:text-muted-foreground"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Nome do Produto</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Código Interno</label>
+                  <input
+                    type="text"
+                    value={formData.internalCode}
+                    onChange={(e) => setFormData({ ...formData, internalCode: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Código de Barras</label>
+                  <input
+                    type="text"
+                    value={formData.barcode}
+                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Preço de Venda</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.salePrice}
+                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Preço de Custo</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.costPrice}
+                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Quantidade Inicial</label>
+                  <input
+                    type="number"
+                    value={formData.currentQuantity}
+                    onChange={(e) => setFormData({ ...formData, currentQuantity: parseInt(e.target.value) || 0 })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Limite Estoque Baixo</label>
+                  <input
+                    type="number"
+                    value={formData.lowStockThreshold}
+                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: parseInt(e.target.value) || 5 })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    min="0"
+                    placeholder="5"
+                  />
+                  <p className="mt-1 text-sm text-muted-foreground">Quantidade mínima para alertar estoque baixo (padrão: 5)</p>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-foreground">Descrição</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+                <div className="md:col-span-2 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={cancelAdd}
+                    className="px-6 py-2.5 text-gray-700 font-semibold rounded-lg bg-white hover:bg-gray-50 border-2 border-gray-300 hover:border-gray-400 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                  >
+                    ❌ Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+                  >
+                    💾 Salvar Produto
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Produto */}
+      {showEditProductModal && editingProduct && (
+        <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-2xl shadow-lg rounded-lg bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-foreground">Editar Produto</h3>
+                <button
+                  onClick={cancelEdit}
+                  className="text-foreground hover:text-muted-foreground"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Nome do Produto</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Código Interno</label>
+                  <input
+                    type="text"
+                    value={formData.internalCode}
+                    onChange={(e) => setFormData({ ...formData, internalCode: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Código de Barras</label>
+                  <input
+                    type="text"
+                    value={formData.barcode}
+                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Preço de Venda</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.salePrice}
+                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Preço de Custo</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.costPrice}
+                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Quantidade Atual</label>
+                  <input
+                    type="number"
+                    value={formData.currentQuantity}
+                    onChange={(e) => setFormData({ ...formData, currentQuantity: parseInt(e.target.value) || 0 })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Limite Estoque Baixo</label>
+                  <input
+                    type="number"
+                    value={formData.lowStockThreshold}
+                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: parseInt(e.target.value) || 5 })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    min="0"
+                    placeholder="5"
+                  />
+                  <p className="mt-1 text-sm text-muted-foreground">Quantidade mínima para alertar estoque baixo (padrão: 5)</p>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-foreground">Descrição</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+                <div className="md:col-span-2 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="px-6 py-2.5 text-gray-700 font-semibold rounded-lg bg-white hover:bg-gray-50 border-2 border-gray-300 hover:border-gray-400 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                  >
+                    ❌ Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-500 hover:to-green-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+                  >
+                    💾 Atualizar Produto
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: 'hsl(var(--card))',
+            color: 'hsl(var(--card-foreground))',
+            border: '1px solid hsl(var(--border))',
+            zIndex: 9999,
+          },
+        }}
+        containerStyle={{
+          top: 80,
+          zIndex: 50,
+        }}
+      />
     </div>
   );
 }

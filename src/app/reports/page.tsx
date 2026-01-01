@@ -7,21 +7,25 @@ const ReportsPage = () => {
   const [products, setProducts] = useState([]);
 
   useEffect(() => {
-    loadMovements();
-    loadProducts();
+    const loadData = async () => {
+      try {
+        const [movementsRes, productsRes] = await Promise.all([
+          fetch('/api/movements'),
+          fetch('/api/products')
+        ]);
+
+        const movementsData = await movementsRes.json();
+        const productsData = await productsRes.json();
+
+        setMovements(movementsData);
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+      }
+    };
+
+    loadData();
   }, []);
-
-  const loadMovements = async () => {
-    const res = await fetch('/api/movements'); // Garantir que API retorne dados
-    const data = await res.json();
-    setMovements(data);
-  };
-
-  const loadProducts = async () => {
-    const res = await fetch('/api/products'); // Garantir que API retorne dados
-    const data = await res.json();
-    setProducts(data);
-  };
 
   return (
     <div>

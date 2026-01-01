@@ -1,201 +1,279 @@
+/* global.css — versão simples e configurável
+   1) Altere apenas os valores HEX na seção "PALETA — CONFIGURE AQUI".
+   2) Ative o modo escuro adicionando a classe .dark ao elemento html ou body.
+*/
+
+/* Se ainda usar Tailwind, descomente a linha abaixo */
 @import "tailwindcss";
 
+/* ========================================================================== */
+/* PALETA — CONFIGURE AQUI (Mude apenas estes valores)                        */
+/* ========================================================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary: #3b82f6;
-  --primary-dark: #2563eb;
-  --secondary: #64748b;
-  --accent: #f1f5f9;
-  --border: #e2e8f0;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --muted: #64748b;
-  --muted-foreground: #475569;
+  /* Paleta clara (padrão / root) */
+  --palette-0: #F9F7F5; /* fundo claro */
+  --palette-1: #e8e3dc; /* tom secundário / cards */
+  --palette-2: #222222; /* cinza / bordas / texto secundário */
+  --palette-3: #ffffff; /* marrom médio */
+  --palette-4: #FFFFFF; /* branco / texto em fundos escuros */
+
+  /* Cores de marca */
+  --brand-primary: #344467;   /* azul vibrante */
+  --brand-secondary: #21889f; /* roxo */
+
+  /* Estados */
+  --state-success: #10B981;
+  --state-warning: #F59E0B;
+  --state-destructive: #EF4444;
+
+  /* Controle de contraste (opcional) */
+  --muted-alpha: 0.6; /* para uso em backgrounds sutilmente atenuados */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --primary: #60a5fa;
-    --primary-dark: #3b82f6;
-    --secondary: #94a3b8;
-    --accent: #1e293b;
-    --border: #334155;
-    --success: #34d399;
-    --warning: #fbbf24;
-    --error: #f87171;
-    --muted: #64748b;
-    --muted-foreground: #cbd5e1;
-  }
+/* Variáveis mapeadas (use estas no CSS, não as palettes diretamente) */
+:root {
+  --bg: var(--palette-0);
+  --fg: var(--palette-2);
+
+  --card-bg: var(--palette-1);
+  --card-fg: var(--palette-2);
+
+  --primary: var(--brand-primary);
+  --primary-foreground: var(--palette-4);
+
+  --secondary: var(--brand-secondary);
+  --muted: rgba(99,99,99,var(--muted-alpha)); /* usa o cinza como texto atenuado */
+
+  --border: var(--palette-2);
+  --ring: var(--brand-primary);
+
+  --success: var(--state-success);
+  --warning: var(--state-warning);
+  --error: var(--destructive);
+  --destructive: var(--state-destructive);
+
+  /* Mapeamento para Tailwind CSS */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--card-bg);
+  --card-foreground: var(--card-fg);
+  --input: var(--card-bg);
+  --muted-foreground: var(--muted);
+  --accent: var(--card-bg);
+  --accent-foreground: var(--fg);
+  --popover: var(--card-bg);
+  --popover-foreground: var(--card-fg);
 }
 
+/* ========================================================================== */
+/* MODO ESCURO — altere apenas as variáveis abaixo se quiser outros tons       */
+/* ========================================================================== */
+/* Adicione a classe .dark ao html/body para aplicar essas variáveis */
+.dark {
+  --bg: #222933;       /* fundo escuro (aqui palette-4 era branco; altere se desejar) */
+  --fg: #F9F7F5;       /* texto em dark — normalmente palette-0 */
+  --card-bg: #333333;          /* card em dark (escolha um HEX) */
+  --card-fg: var(--palette-0);
+
+  --primary: #6c8ed7;
+  --primary-foreground: #d5d5d5;
+
+  --secondary: #3F3A36;
+  --muted: rgba(255,255,255,var(--muted-alpha));
+
+  --border: #efefef;
+  --ring: var(--brand-primary);
+
+  --success: #059669;
+  --warning: #D97706;
+  --error: #7F1D1D;
+  --destructive: #7F1D1D;
+
+  /* Mapeamento para Tailwind CSS */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--card-bg);
+  --card-foreground: var(--card-fg);
+  --input: var(--card-bg);
+  --muted-foreground: var(--muted);
+  --accent: var(--card-bg);
+  --accent-foreground: var(--fg);
+  --popover: var(--card-bg);
+  --popover-foreground: var(--card-fg);
+}
+
+/* ========================================================================== */
+/* RESET/BASE — use as referência consistente por toda a aplicação            */
+/* ========================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+html {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+/* Body separado para facilitar overrides */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* Melhorar aparência dos inputs */
-input[type="number"] {
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
   margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  transition: background-color 200ms ease, color 200ms ease;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Melhorar aparência das tabelas */
+/* Focus acessível */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Links */
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+a:hover,
+a:focus {
+  text-decoration: underline;
+}
+
+/* ========================================================================== */
+/* COMPONENTES SIMPLES (Cards, Botões, Inputs, Tabelas)                      */
+/* ========================================================================== */
+
+/* Card */
+.card {
+  background: var(--card-bg);
+  color: var(--card-fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.04);
+}
+
+/* Botões */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 100ms ease, box-shadow 120ms ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn.ghost {
+  background: transparent;
+  color: var(--primary);
+  border-color: var(--border);
+}
+.btn.destructive {
+  background: var(--destructive);
+  color: #fff;
+}
+
+/* Form controls */
+input[type="text"],
+input[type="email"],
+input[type="date"],
+textarea,
+select {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 6px;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+
+/* Tabelas simples */
 table {
+  width: 100%;
   border-collapse: collapse;
+  background: transparent;
+  color: var(--fg);
 }
-
 th, td {
+  padding: .75rem 1rem;
+  text-align: left;
   border-bottom: 1px solid var(--border);
 }
-
-/* Melhorar aparência dos botões */
-button {
-  transition: all 0.2s ease-in-out;
+th {
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
 }
 
-button:hover {
-  transform: translateY(-1px);
+/* ========================================================================== */
+/* UTILITÁRIOS DE COR (rápidos para uso no HTML)                             */
+/* ========================================================================== */
+.bg-primary { background-color: var(--primary) !important; color: var(--primary-foreground) !important; }
+.bg-secondary { background-color: var(--secondary) !important; color: var(--primary-foreground) !important; }
+.text-primary { color: var(--primary) !important; }
+.text-muted { color: var(--muted) !important; }
+.border-muted { border-color: var(--border) !important; }
+
+/* Níveis de fundo (facilitam camadas) */
+.bg-level-0 { background-color: var(--bg) !important; }
+.bg-level-1 { background-color: var(--card-bg) !important; }
+.bg-level-2 { background-color: rgba(0,0,0,0.03) !important; } /* exemplo sutil */
+.bg-level-3 { background-color: rgba(0,0,0,0.06) !important; }
+
+/* ========================================================================== */
+/* REGRAS ADICIONAIS (específicas, mas simples)                               */
+/* ========================================================================== */
+
+/* Tooltip / popover simples */
+.popover {
+  background: var(--card-bg);
+  color: var(--card-fg);
+  border: 1px solid var(--border);
+  padding: .5rem .75rem;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
 }
 
-button:active {
-  transform: translateY(0);
+/* Gráficos (ajustar conforme a biblioteca que usar) */
+.chart-root text { fill: var(--muted); }
+.chart-tooltip {
+  background: var(--card-bg);
+  color: var(--card-fg);
+  border: 1px solid var(--border);
+  padding: .5rem;
+  border-radius: 6px;
 }
 
-/* Estilos para gráficos Recharts */
-.recharts-cartesian-axis-tick-value,
-.recharts-cartesian-axis-tick text {
-  fill: #374151 !important; /* text-gray-700 */
-  font-size: 12px;
+/* Acessibilidade: esconder visualmente mas manter para leitores */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
 }
 
-.recharts-tooltip-label,
-.recharts-tooltip-item-name,
-.recharts-tooltip-item-value {
-  color: #374151 !important; /* text-gray-700 */
-}
-
-.recharts-legend-item-text {
-  color: #374151 !important; /* text-gray-700 */
-}
-
-.recharts-cartesian-grid line {
-  stroke: #e5e7eb !important; /* gray-200 */
-}
-
-.recharts-cartesian-axis line {
-  stroke: #d1d5db !important; /* gray-300 */
-}
-
-/* Estilos específicos para tooltips e labels */
-.recharts-default-tooltip {
-  background-color: white !important;
-  border: 1px solid #d1d5db !important;
-  border-radius: 4px !important;
-}
-
-.recharts-tooltip-label {
-  color: #374151 !important; /* text-gray-700 */
-  font-weight: 500 !important;
-}
-
-.recharts-tooltip-item-name,
-.recharts-tooltip-item-value {
-  color: #374151 !important; /* text-gray-700 */
-}
-
-/* Estilos para pie chart labels */
-.recharts-pie-label-text {
-  fill: #374151 !important; /* text-gray-700 */
-}
-
-/* Melhorar contraste geral */
-* {
-  color: inherit;
-}
-
-/* Garantir que textos sem classe específica tenham cor adequada */
-body, p, span, div, h1, h2, h3, h4, h5, h6,
-table, th, td, tr,
-label, legend, fieldset,
-nav, header, footer, main, section, article, aside {
-  color: #111827; /* text-gray-900 */
-}
-
-/* Para elementos de formulário */
-input, textarea, select, option {
-  color: #111827; /* text-gray-900 */
-}
-
-/* Inputs de data especificamente */
-input[type="date"] {
-  color: #111827; /* text-gray-900 */
-  color-scheme: light;
-}
-
-/* Inputs de data - forçar cor em todos os navegadores */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0); /* Manter ícone escuro */
-}
-
-input[type="date"]::-webkit-datetime-edit {
-  color: #111827;
-}
-
-input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-  color: #111827;
-}
-
-input[type="date"]::-webkit-datetime-edit-text {
-  color: #111827;
-}
-
-input[type="date"]::-webkit-datetime-edit-month-field,
-input[type="date"]::-webkit-datetime-edit-day-field,
-input[type="date"]::-webkit-datetime-edit-year-field {
-  color: #111827;
-}
-
-input[type="date"]::-moz-focus-inner {
-  border: 0;
-}
-
-/* Firefox */
-input[type="date"] {
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-/* Para elementos interativos */
-a, button, [role="button"] {
-  color: inherit;
-}
-
-/* Para listas */
-li, dt, dd {
-  color: inherit;
-}
-
-/* Para elementos de navegação e links */
-nav a, .nav-link {
-  color: inherit;
-}
-
-/* Reset de cores para garantir consistência */
-* {
-  color: inherit;
-}
-
-body {
-  color: #111827; /* text-gray-900 */
-}
+/* ========================================================================== */
+/* COMO PERSONALIZAR RÁPIDO
+   - Alterar cores: modifique apenas os HEX em ":root" ou em ".dark".
+   - Ativar dark mode: <html class="dark"> ... </html> (ou adicionar via JS).
+   - Se precisar de variação de tonalidade automática, considere gerar new vars
+     a partir da palette no build step (Sass/JS) — este CSS foi mantido puro. */
+/* ========================================================================== */

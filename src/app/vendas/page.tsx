@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { Navigation } from '@/components/Navigation';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
+import { Input } from '@/components/Input';
 
 interface Product {
   id: string;
@@ -22,7 +25,6 @@ interface SaleItem {
 
 export default function Vendas() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
@@ -42,8 +44,6 @@ export default function Vendas() {
       }
     } catch (error) {
       console.error('Erro ao buscar produtos:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -123,59 +123,34 @@ export default function Vendas() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <Link href="/" className="text-xl font-bold text-gray-900">TMR Auto Elétrica</Link>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link href="/" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Dashboard
-                </Link>
-                <Link href="/estoque" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Estoque
-                </Link>
-                <Link href="/vendas" className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Vendas
-                </Link>
-                <Link href="/relatorios" className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                  Relatórios
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-background text-foreground transition-colors">
+      <Navigation />
 
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Registro de Vendas</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-6">Registro de Vendas</h1>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Lado esquerdo - Busca e adição de produtos */}
             <div>
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Buscar Produto</h2>
-
-                <div className="space-y-4">
+              <Card className="bg-level-1 mb-6">
+                <Card.Header>
+                  <h2 className="text-lg font-medium text-card-foreground">Buscar Produto</h2>
+                </Card.Header>
+                <Card.Body>
                   <div>
-                    <input
+                    <Input
                       type="text"
                       placeholder="Digite nome, código interno ou código de barras..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>
 
                   {searchTerm && (
-                    <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md">
+                    <div className="max-h-60 overflow-y-auto border border-border rounded-lg bg-level-2">
                       {filteredProducts.length === 0 ? (
-                        <p className="p-4 text-gray-900 text-center">Nenhum produto encontrado</p>
+                        <p className="p-4 text-muted-foreground text-center">Nenhum produto encontrado</p>
                       ) : (
                         filteredProducts.map((product) => (
                           <div
@@ -184,10 +159,10 @@ export default function Vendas() {
                               setSelectedProduct(product);
                               setSearchTerm(product.name);
                             }}
-                            className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            className="p-3 hover:bg-level-3 cursor-pointer border-b border-border last:border-b-0 transition-colors"
                           >
-                            <div className="font-medium text-gray-900">{product.name}</div>
-                            <div className="text-sm text-gray-900">
+                            <div className="font-medium text-foreground">{product.name}</div>
+                            <div className="text-sm text-muted-foreground">
                               Código: {product.internalCode} | Estoque: {product.currentQuantity} |
                               Preço: R$ {parseFloat(product.salePrice).toFixed(2)}
                             </div>
@@ -198,61 +173,66 @@ export default function Vendas() {
                   )}
 
                   {selectedProduct && (
-                    <div className="bg-blue-50 p-4 rounded-md">
-                      <h3 className="font-medium text-blue-900">Produto Selecionado:</h3>
-                      <p className="text-blue-800">{selectedProduct.name}</p>
-                      <p className="text-sm text-blue-600">
+                    <div className="bg-info/10 border border-info/20 p-4 rounded-lg">
+                      <h3 className="font-medium text-info mb-2">Produto Selecionado:</h3>
+                      <p className="text-foreground font-semibold">{selectedProduct.name}</p>
+                      <p className="text-sm text-muted-foreground mb-3">
                         Preço: R$ {parseFloat(selectedProduct.salePrice).toFixed(2)} |
                         Estoque: {selectedProduct.currentQuantity}
                       </p>
 
-                      <div className="mt-3 flex items-center space-x-2">
-                        <label className="text-sm font-medium text-blue-900">Quantidade:</label>
-                        <input
+                      <div className="flex items-center gap-3">
+                        <Input
                           type="number"
                           min="1"
                           max={selectedProduct.currentQuantity}
-                          value={quantity}
+                          value={quantity.toString()}
                           onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                          className="w-20 px-2 py-1 border border-blue-300 rounded text-center"
+                          className="w-24"
+                          label="Quantidade"
                         />
-                        <button
-                          onClick={addToSale}
-                          className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                        >
-                          Adicionar
-                        </button>
+                        <div className="mt-6">
+                          <Button
+                            onClick={addToSale}
+                            variant="success"
+                          >
+                            Adicionar
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
+                </Card.Body>
+              </Card>
             </div>
 
             {/* Lado direito - Carrinho de vendas */}
             <div>
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Itens da Venda</h2>
+              <Card className="bg-level-1">
+                <Card.Header>
+                  <h2 className="text-lg font-medium text-card-foreground">Itens da Venda</h2>
+                </Card.Header>
+                <Card.Body>
 
                 {saleItems.length === 0 ? (
-                  <p className="text-gray-900 text-center py-8">Nenhum item adicionado</p>
+                  <p className="text-muted-foreground text-center py-8">Nenhum item adicionado</p>
                 ) : (
                   <div className="space-y-3 mb-6">
                     {saleItems.map((item, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                      <div key={index} className="flex justify-between items-center p-3 bg-level-2 hover:bg-level-3 rounded-lg border border-border transition-colors">
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{item.product.name}</p>
-                          <p className="text-sm text-gray-900">
+                          <p className="font-medium text-foreground">{item.product.name}</p>
+                          <p className="text-sm text-muted-foreground">
                             Qtd: {item.quantity} × R$ {item.unitPrice.toFixed(2)}
                           </p>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-gray-900">
+                        <div className="flex items-center space-x-3">
+                          <span className="font-semibold text-foreground">
                             R$ {item.total.toFixed(2)}
                           </span>
                           <button
                             onClick={() => removeFromSale(index)}
-                            className="text-red-600 hover:text-red-800"
+                            className="text-error hover:text-error/80 font-bold text-lg transition-colors"
                           >
                             ✕
                           </button>
@@ -263,28 +243,30 @@ export default function Vendas() {
                 )}
 
                 {saleItems.length > 0 && (
-                  <div className="border-t pt-4">
+                  <div className="border-t border-border pt-4 mt-4">
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-lg font-medium text-gray-900">Total:</span>
-                      <span className="text-2xl font-bold text-green-600">
+                      <span className="text-lg font-medium text-foreground">Total:</span>
+                      <span className="text-2xl font-bold text-success">
                         R$ {getTotalSale().toFixed(2)}
                       </span>
                     </div>
 
-                    <button
+                    <Button
                       onClick={processSale}
                       disabled={isProcessing}
-                      className="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                      variant="success"
+                      className="w-full py-3"
                     >
                       {isProcessing ? 'Processando...' : 'Finalizar Venda'}
-                    </button>
+                    </Button>
                   </div>
                 )}
-              </div>
+                </Card.Body>
+              </Card>
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

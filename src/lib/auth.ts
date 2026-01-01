@@ -1,4 +1,4 @@
-import NextAuth, { DefaultSession, type Session, type User } from 'next-auth';
+import type { Session, User } from 'next-auth';
 import { type JWT } from 'next-auth/jwt';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -6,22 +6,32 @@ import { db } from './db';
 import { users } from './db/schema';
 import { eq } from 'drizzle-orm';
 
+const NextAuth = require('next-auth');
+
 // Extend the built-in session types
 declare module 'next-auth' {
-  interface Session extends DefaultSession {
+  interface Session {
     user: {
       id: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
       role: string;
-    } & DefaultSession['user'];
+    };
   }
 
   interface User {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
     role: string;
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
+    id: string;
     role: string;
   }
 }
@@ -70,13 +80,14 @@ export const authOptions = {
   callbacks: {
     async jwt({ token, user }: { token: JWT; user: User }) {
       if (user) {
+        token.id = user.id;
         token.role = user.role;
       }
       return token;
     },
     async session({ session, token }: { session: Session; token: JWT }) {
       if (token) {
-        session.user.id = token.sub!;
+        session.user.id = token.id as string;
         session.user.role = token.role;
       }
       return session;
@@ -89,5 +100,4 @@ export const authOptions = {
 
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
-export default authOptions;
+export default handler;
