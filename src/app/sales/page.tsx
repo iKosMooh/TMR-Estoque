@@ -1,11 +1,18 @@
 'use client';
 import { useState } from 'react';
 
+interface Sale {
+  id: string;
+  productId: string;
+  quantity: number;
+  status: string;
+}
+
 export default function SalesPage() {
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState(0);
-  const [sales, setSales] = useState([]);
+  const [sales, setSales] = useState<Sale[]>([]);
 
   const declareSale = async () => {
     const totalPrice = quantity * unitPrice;

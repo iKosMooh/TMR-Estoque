@@ -3,9 +3,10 @@ import { db } from '../../../../lib/db';
 import { productBatches, products } from '../../../../lib/schema';
 import { eq } from 'drizzle-orm';
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   try {
-    const batchId = params.id;
+    const batchId = id;
     if (!batchId) {
       return NextResponse.json({ error: 'ID do lote obrigatório' }, { status: 400 });
     }

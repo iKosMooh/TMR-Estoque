@@ -307,7 +307,7 @@ export default function Estoque() {
       });
 
       const data: ImportResult = await response.json();
-      setImportPreview(data);
+      setImportPreview(null);
       if (data.success) {
         toast.success(data.message);
         setShowImportModal(false);
