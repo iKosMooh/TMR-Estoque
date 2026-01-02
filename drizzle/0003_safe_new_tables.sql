@@ -1,0 +1,327 @@
+-- Safe migration: Only create new tables, don't modify existing ones
+
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`user_id` varchar(36),
+	`action` varchar(100) NOT NULL,
+	`entity_type` varchar(100) NOT NULL,
+	`entity_id` varchar(36),
+	`old_values` json,
+	`new_values` json,
+	`ip_address` varchar(50),
+	`user_agent` text,
+	`created_at` datetime DEFAULT NOW(),
+	CONSTRAINT `audit_logs_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `bank_accounts` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`bank_name` varchar(255) NOT NULL,
+	`bank_code` varchar(10),
+	`agency` varchar(20),
+	`account_number` varchar(50),
+	`account_type` enum('checking','savings','payment') NOT NULL,
+	`balance` decimal(10,2) DEFAULT '0',
+	`is_active` int NOT NULL DEFAULT 1,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `bank_accounts_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `financial_categories` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`parent_id` varchar(36),
+	`name` varchar(255) NOT NULL,
+	`type` enum('income','expense') NOT NULL,
+	`is_active` int NOT NULL DEFAULT 1,
+	`created_at` datetime DEFAULT NOW(),
+	CONSTRAINT `financial_categories_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `financial_transactions` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`bank_account_id` varchar(36),
+	`category_id` varchar(36),
+	`transaction_type` enum('income','expense','transfer') NOT NULL,
+	`description` varchar(500) NOT NULL,
+	`amount` decimal(10,2) NOT NULL,
+	`customer_id` varchar(36),
+	`supplier_id` varchar(36),
+	`sale_id` varchar(36),
+	`invoice_id` varchar(36),
+	`due_date` date NOT NULL,
+	`payment_date` date,
+	`status` enum('pending','paid','overdue','cancelled','partially_paid') DEFAULT 'pending',
+	`paid_amount` decimal(10,2) DEFAULT '0',
+	`payment_method` varchar(50),
+	`notes` text,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `financial_transactions_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `invoice_items` (
+	`id` varchar(36) NOT NULL,
+	`invoice_id` varchar(36) NOT NULL,
+	`product_id` varchar(36),
+	`item_number` int NOT NULL,
+	`code` varchar(100),
+	`description` varchar(500) NOT NULL,
+	`ncm` varchar(10),
+	`cfop` varchar(4) NOT NULL,
+	`unit_of_measure` varchar(10),
+	`quantity` decimal(10,3) NOT NULL,
+	`unit_price` decimal(10,4) NOT NULL,
+	`total_price` decimal(10,2) NOT NULL,
+	`discount_amount` decimal(10,2) DEFAULT '0',
+	`icms_base` decimal(10,2) DEFAULT '0',
+	`icms_rate` decimal(5,2) DEFAULT '0',
+	`icms_amount` decimal(10,2) DEFAULT '0',
+	`ipi_rate` decimal(5,2) DEFAULT '0',
+	`ipi_amount` decimal(10,2) DEFAULT '0',
+	`pis_rate` decimal(5,2) DEFAULT '0',
+	`pis_amount` decimal(10,2) DEFAULT '0',
+	`cofins_rate` decimal(5,2) DEFAULT '0',
+	`cofins_amount` decimal(10,2) DEFAULT '0',
+	`ibs_rate` decimal(5,2) DEFAULT '0',
+	`ibs_amount` decimal(10,2) DEFAULT '0',
+	`cbs_rate` decimal(5,2) DEFAULT '0',
+	`cbs_amount` decimal(10,2) DEFAULT '0',
+	`created_at` datetime DEFAULT NOW(),
+	CONSTRAINT `invoice_items_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `invoices` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`sale_id` varchar(36),
+	`customer_id` varchar(36),
+	`supplier_id` varchar(36),
+	`invoice_type` enum('nfe','nfse','nfce') NOT NULL,
+	`direction` enum('inbound','outbound') NOT NULL,
+	`series` int NOT NULL,
+	`number` int NOT NULL,
+	`access_key` varchar(44),
+	`status` enum('draft','pending','authorized','rejected','cancelled','denied') DEFAULT 'draft',
+	`authorization_protocol` varchar(50),
+	`authorization_date` datetime,
+	`issue_date` datetime NOT NULL,
+	`operation_date` date,
+	`total_products` decimal(10,2) NOT NULL,
+	`total_services` decimal(10,2) DEFAULT '0',
+	`discount_amount` decimal(10,2) DEFAULT '0',
+	`shipping_amount` decimal(10,2) DEFAULT '0',
+	`icms_base` decimal(10,2) DEFAULT '0',
+	`icms_amount` decimal(10,2) DEFAULT '0',
+	`ipi_amount` decimal(10,2) DEFAULT '0',
+	`pis_amount` decimal(10,2) DEFAULT '0',
+	`cofins_amount` decimal(10,2) DEFAULT '0',
+	`ibs_amount` decimal(10,2) DEFAULT '0',
+	`cbs_amount` decimal(10,2) DEFAULT '0',
+	`total_tax` decimal(10,2) DEFAULT '0',
+	`total_amount` decimal(10,2) NOT NULL,
+	`cfop` varchar(4),
+	`operation_nature` varchar(255),
+	`xml_content` text,
+	`pdf_url` varchar(500),
+	`notes` text,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `invoices_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `product_categories` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`parent_id` varchar(36),
+	`name` varchar(255) NOT NULL,
+	`slug` varchar(255) NOT NULL,
+	`description` text,
+	`image_url` varchar(500),
+	`sort_order` int DEFAULT 0,
+	`is_active` int NOT NULL DEFAULT 1,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `product_categories_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `product_variants` (
+	`id` varchar(36) NOT NULL,
+	`product_id` varchar(36) NOT NULL,
+	`variant_name` varchar(255) NOT NULL,
+	`sku` varchar(100),
+	`barcode` varchar(100),
+	`cost_price` decimal(10,2),
+	`selling_price` decimal(10,2),
+	`current_stock` decimal(10,3) DEFAULT '0',
+	`attributes` json,
+	`image_url` varchar(500),
+	`is_active` int NOT NULL DEFAULT 1,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `product_variants_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `roles` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36) NOT NULL,
+	`name` varchar(100) NOT NULL,
+	`slug` varchar(50) NOT NULL,
+	`description` text,
+	`permissions` json NOT NULL,
+	`is_system_role` int DEFAULT 0,
+	`sort_order` int DEFAULT 0,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `roles_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `shipments` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`sale_id` varchar(36) NOT NULL,
+	`tracking_code` varchar(255),
+	`carrier` varchar(100),
+	`service_type` varchar(100),
+	`weight_kg` decimal(10,3),
+	`length_cm` decimal(10,2),
+	`width_cm` decimal(10,2),
+	`height_cm` decimal(10,2),
+	`shipping_cost` decimal(10,2),
+	`declared_value` decimal(10,2),
+	`status` enum('pending','shipped','in_transit','delivered','failed','returned') DEFAULT 'pending',
+	`shipped_at` datetime,
+	`delivered_at` datetime,
+	`label_url` varchar(500),
+	`label_printed` int DEFAULT 0,
+	`notes` text,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `shipments_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `stock_levels` (
+	`id` varchar(36) NOT NULL,
+	`product_id` varchar(36) NOT NULL,
+	`warehouse_id` varchar(36) NOT NULL,
+	`batch_id` varchar(36),
+	`tenant_id` varchar(36),
+	`quantity` decimal(10,3) NOT NULL DEFAULT '0',
+	`reserved_quantity` decimal(10,3) DEFAULT '0',
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `stock_levels_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `subscription_plans` (
+	`id` varchar(36) NOT NULL,
+	`name` varchar(100) NOT NULL,
+	`slug` varchar(50) NOT NULL,
+	`description` text,
+	`price_monthly` decimal(10,2) NOT NULL,
+	`price_yearly` decimal(10,2),
+	`max_businesses` int NOT NULL DEFAULT 1,
+	`max_employees_per_business` int NOT NULL DEFAULT 5,
+	`max_products` int NOT NULL DEFAULT 1000,
+	`max_monthly_invoices` int NOT NULL DEFAULT 100,
+	`storage_limit_mb` int NOT NULL DEFAULT 1024,
+	`features` json,
+	`is_active` int NOT NULL DEFAULT 1,
+	`sort_order` int DEFAULT 0,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `subscription_plans_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `system_alerts` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`alert_type` enum('low_stock','expiring_batch','certificate_expiring','payment_overdue','system') NOT NULL,
+	`severity` enum('info','warning','error','critical') NOT NULL,
+	`title` varchar(255) NOT NULL,
+	`message` text NOT NULL,
+	`entity_type` varchar(100),
+	`entity_id` varchar(36),
+	`is_read` int DEFAULT 0,
+	`read_at` datetime,
+	`read_by` varchar(36),
+	`is_active` int NOT NULL DEFAULT 1,
+	`created_at` datetime DEFAULT NOW(),
+	CONSTRAINT `system_alerts_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `tenant_memberships` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36) NOT NULL,
+	`user_id` varchar(36) NOT NULL,
+	`role_id` varchar(36) NOT NULL,
+	`status` enum('active','inactive','pending_invitation') DEFAULT 'active',
+	`invitation_token` varchar(255),
+	`invitation_expires_at` datetime,
+	`joined_at` datetime DEFAULT NOW(),
+	`last_access` datetime,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `tenant_memberships_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `tenants` (
+	`id` varchar(36) NOT NULL,
+	`owner_id` varchar(36) NOT NULL,
+	`plan_id` varchar(36) NOT NULL,
+	`business_name` varchar(255) NOT NULL,
+	`trading_name` varchar(255),
+	`tax_id` varchar(18) NOT NULL,
+	`state_registration` varchar(20),
+	`municipal_registration` varchar(20),
+	`email` varchar(255),
+	`phone` varchar(20),
+	`website` varchar(255),
+	`logo_url` varchar(500),
+	`address_street` varchar(255),
+	`address_number` varchar(20),
+	`address_complement` varchar(100),
+	`address_neighborhood` varchar(100),
+	`address_city` varchar(100),
+	`address_state` varchar(2),
+	`address_zipcode` varchar(10),
+	`tax_regime` enum('simples_nacional','lucro_presumido','lucro_real','mei') NOT NULL,
+	`crt` tinyint NOT NULL,
+	`nfe_environment` enum('production','homologation') DEFAULT 'homologation',
+	`nfe_series_number` int DEFAULT 1,
+	`nfe_next_number` int DEFAULT 1,
+	`nfse_series_number` int DEFAULT 1,
+	`nfse_next_number` int DEFAULT 1,
+	`subscription_status` enum('active','suspended','cancelled','trial') DEFAULT 'trial',
+	`subscription_starts_at` datetime,
+	`subscription_ends_at` datetime,
+	`trial_ends_at` datetime,
+	`settings` json,
+	`is_active` int NOT NULL DEFAULT 1,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `tenants_id` PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `warehouses` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36),
+	`name` varchar(255) NOT NULL,
+	`code` varchar(50),
+	`description` text,
+	`address_street` varchar(255),
+	`address_number` varchar(20),
+	`address_city` varchar(100),
+	`address_state` varchar(2),
+	`is_main` int DEFAULT 0,
+	`is_active` int NOT NULL DEFAULT 1,
+	`created_at` datetime DEFAULT NOW(),
+	`updated_at` datetime DEFAULT NOW(),
+	CONSTRAINT `warehouses_id` PRIMARY KEY(`id`)
+);
+
+-- Add missing columns to existing suppliers table if needed
+-- This is safe as it only adds new columns, doesn't modify existing ones

@@ -10,16 +10,31 @@ export async function GET() {
     const productsWithBatches = await Promise.all(
       productList.map(async (p) => {
         const batches = await db.select().from(productBatches).where(eq(productBatches.productId, p.id));
-        const totalQuantity = batches.length > 0 ? batches.reduce((sum, b) => sum + b.quantityRemaining, 0) : p.currentQuantity; // Fallback para antigos
+        const totalQuantity = batches.length > 0 ? batches.reduce((sum, b) => sum + b.quantityRemaining, 0) : p.currentQuantity;
+        
+        // Calcular o maior preço de venda entre os lotes
+        let maxSellingPrice = parseFloat(p.salePrice || '0');
+        if (batches.length > 0) {
+          const batchPrices = batches.map(b => parseFloat(b.sellingPrice || '0'));
+          maxSellingPrice = Math.max(...batchPrices, maxSellingPrice);
+        }
+        
+        // Calcular o menor preço de custo entre os lotes
+        let minCostPrice = parseFloat(p.costPrice || '0');
+        if (batches.length > 0) {
+          const batchCosts = batches.map(b => parseFloat(b.costPrice || '0'));
+          minCostPrice = Math.min(...batchCosts.filter(c => c > 0), minCostPrice);
+        }
+        
         return {
           id: p.id,
           internalCode: p.internalCode,
           barcode: p.barcode,
           name: p.name,
           description: p.description,
-          salePrice: p.salePrice,
-          costPrice: p.costPrice,
-          currentQuantity: totalQuantity, // Total dos lotes
+          salePrice: maxSellingPrice.toFixed(2), // Maior preço de venda dos lotes
+          costPrice: minCostPrice.toFixed(2), // Menor preço de custo dos lotes
+          currentQuantity: totalQuantity,
           totalEntry: p.totalEntry,
           totalExit: p.totalExit,
           lastPurchaseDate: p.lastPurchaseDate ? p.lastPurchaseDate.toISOString().split('T')[0] : null,
@@ -33,6 +48,7 @@ export async function GET() {
             quantityReceived: b.quantityReceived,
             quantityRemaining: b.quantityRemaining,
             xmlReference: b.xmlReference,
+            observation: b.observation,
           })),
         };
       })
@@ -48,7 +64,32 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { internalCode, barcode, name, description, salePrice, costPrice, currentQuantity, lowStockThreshold } = body;
+    const { 
+      internalCode, 
+      barcode, 
+      name, 
+      description, 
+      salePrice, 
+      costPrice, 
+      currentQuantity, 
+      lowStockThreshold,
+      observation, 
+      checkOnly,
+      // Campos de e-commerce
+      sku, 
+      weight, 
+      length, 
+      width, 
+      height, 
+      categoryId, 
+      brandName, 
+      manufacturer,
+      shortDescription, 
+      metaTitle, 
+      metaDescription, 
+      tags, 
+      warrantyMonths
+    } = body;
 
     // Validações básicas
     if (!name || !internalCode || !salePrice || !costPrice) {
@@ -57,6 +98,27 @@ export async function POST(request: NextRequest) {
 
     // Verifique se produto existe
     const existing = await db.select().from(products).where(eq(products.internalCode, internalCode));
+    
+    // Se checkOnly=true, apenas verificar se existe
+    if (checkOnly) {
+      if (existing.length > 0) {
+        return NextResponse.json(
+          {
+            exists: true,
+            product: {
+              id: existing[0].id,
+              name: existing[0].name,
+              internalCode: existing[0].internalCode,
+              currentQuantity: existing[0].currentQuantity
+            }
+          },
+          { status: 200 }
+        );
+      } else {
+        return NextResponse.json({ exists: false }, { status: 200 });
+      }
+    }
+    
     if (existing.length > 0) {
       // Produto existe: adicione lote
       const productId = existing[0].id;
@@ -69,13 +131,18 @@ export async function POST(request: NextRequest) {
         quantityReceived: currentQuantity || 0,
         quantityRemaining: currentQuantity || 0,
         xmlReference: 'Manual',
+        observation: observation || null,
       });
       // Atualize totalEntry
       await db.update(products).set({
         totalEntry: existing[0].totalEntry + (currentQuantity || 0),
         lastPurchaseDate: new Date(),
       }).where(eq(products.id, productId));
-      return NextResponse.json({ message: 'Lote adicionado ao produto existente' }, { status: 200 });
+      return NextResponse.json({ 
+        message: 'Lote adicionado ao produto existente',
+        isNewBatch: true,
+        productName: existing[0].name
+      }, { status: 200 });
     } else {
       // Produto novo: crie produto + lote
       const productId = crypto.randomUUID();
@@ -93,6 +160,20 @@ export async function POST(request: NextRequest) {
         lastPurchaseDate: new Date(),
         ncm: null,
         lowStockThreshold: lowStockThreshold || 5,
+        // Campos de e-commerce
+        sku: sku || null,
+        weight: weight || null,
+        length: length || null,
+        width: width || null,
+        height: height || null,
+        categoryId: categoryId || null,
+        brandName: brandName || null,
+        manufacturer: manufacturer || null,
+        shortDescription: shortDescription || null,
+        metaTitle: metaTitle || null,
+        metaDescription: metaDescription || null,
+        tags: tags || null,
+        warrantyMonths: warrantyMonths || null,
       });
       await db.insert(productBatches).values({
         id: crypto.randomUUID(),
@@ -103,8 +184,9 @@ export async function POST(request: NextRequest) {
         quantityReceived: currentQuantity || 0,
         quantityRemaining: currentQuantity || 0,
         xmlReference: 'Manual',
+        observation: observation || null,
       });
-      return NextResponse.json({ id: productId, message: 'Produto e lote criados' }, { status: 201 });
+      return NextResponse.json({ id: productId, message: 'Produto e lote criados', isNewBatch: false }, { status: 201 });
     }
   } catch (error) {
     console.error('Erro ao adicionar produto/lote:', error);
@@ -116,7 +198,12 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, internalCode, barcode, name, description, salePrice, costPrice, currentQuantity, lowStockThreshold } = body;
+    const { 
+      id, internalCode, barcode, name, description, salePrice, costPrice, currentQuantity, lowStockThreshold,
+      // Campos de e-commerce
+      sku, weight, length, width, height, categoryId, brandName, manufacturer,
+      shortDescription, metaTitle, metaDescription, tags, warrantyMonths
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID do produto é obrigatório' }, { status: 400 });
@@ -134,7 +221,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Código interno já existe em outro produto' }, { status: 400 });
     }
 
-    const updates = {
+    const updates: Record<string, unknown> = {
       internalCode,
       barcode: barcode || null,
       name,
@@ -143,6 +230,20 @@ export async function PUT(request: NextRequest) {
       costPrice: costPrice,
       currentQuantity: currentQuantity !== undefined ? currentQuantity : existingProduct[0].currentQuantity,
       lowStockThreshold: lowStockThreshold || 5,
+      // Campos de e-commerce
+      sku: sku || null,
+      weight: weight || null,
+      length: length || null,
+      width: width || null,
+      height: height || null,
+      categoryId: categoryId || null,
+      brandName: brandName || null,
+      manufacturer: manufacturer || null,
+      shortDescription: shortDescription || null,
+      metaTitle: metaTitle || null,
+      metaDescription: metaDescription || null,
+      tags: tags || null,
+      warrantyMonths: warrantyMonths || null,
     };
 
     await db.update(products).set(updates).where(eq(products.id, id));

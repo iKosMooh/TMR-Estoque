@@ -13,6 +13,13 @@ const connection = mysql.createPool({
   password: process.env.DATABASE_PASSWORD!,
   database: process.env.DATABASE_NAME!,
   connectionLimit: 10,
+  waitForConnections: true,
+  queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
+  // Reconectar automaticamente se a conexão for perdida
+  idleTimeout: 60000,
+  maxIdle: 10,
 });
 
 export const db = drizzle(connection, { schema, mode: 'default' });

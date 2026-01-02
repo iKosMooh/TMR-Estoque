@@ -15,6 +15,20 @@
       "when": 1767223598511,
       "tag": "0001_little_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1767375892876,
+      "tag": "0002_stale_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1767376826154,
+      "tag": "0003_youthful_ultron",
+      "breakpoints": true
     }
   ]
 }

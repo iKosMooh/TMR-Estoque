@@ -10,49 +10,50 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Mapeia as variáveis do CSS Global
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+        // Mapeia as variáveis do CSS Global (usando var() direto)
+        border: "var(--border)",
+        input: "var(--input)",
+        ring: "var(--ring)",
+        background: "var(--background)",
+        foreground: "var(--foreground)",
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "var(--primary)",
+          foreground: "var(--primary-foreground)",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "var(--secondary)",
+          foreground: "var(--secondary-foreground)",
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+          DEFAULT: "var(--destructive)",
+          foreground: "var(--destructive-foreground)",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "var(--accent)",
+          foreground: "var(--accent-foreground)",
         },
         popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+          DEFAULT: "var(--popover)",
+          foreground: "var(--popover-foreground)",
         },
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
         },
         success: "var(--success)",
         warning: "var(--warning)",
         error: "var(--error)",
+        info: "var(--primary)",
         // Níveis extras para design
-        "level-0": "var(--level-0)",
-        "level-1": "var(--level-1)",
-        "level-2": "var(--level-2)",
-        "level-3": "var(--level-3)",
-        "level-4": "var(--level-4)",
+        "level-0": "var(--bg)",
+        "level-1": "var(--card-bg)",
+        "level-2": "rgba(0,0,0,0.03)",
+        "level-3": "rgba(0,0,0,0.06)",
+        "level-4": "rgba(0,0,0,0.10)",
       },
       borderRadius: {
         lg: "var(--radius)",

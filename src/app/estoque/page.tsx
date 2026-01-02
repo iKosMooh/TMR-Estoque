@@ -17,6 +17,21 @@ interface ProductFormData {
   costPrice: string;
   currentQuantity: number;
   lowStockThreshold: number;
+  observation?: string;
+  // Campos para E-commerce
+  sku?: string;
+  weight?: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  categoryId?: string;
+  brandName?: string;
+  manufacturer?: string;
+  shortDescription?: string;
+  metaTitle?: string;
+  metaDescription?: string;
+  tags?: string;
+  warrantyMonths?: number;
 }
 
 interface BatchFormData {
@@ -50,6 +65,7 @@ interface Product {
     quantityReceived: number;
     quantityRemaining: number;
     xmlReference: string | null;
+    observation: string | null;
   }>;
 }
 
@@ -100,6 +116,8 @@ export default function Estoque() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showEditProductModal, setShowEditProductModal] = useState(false);
+  const [formType, setFormType] = useState<'simple' | 'ecommerce'>('simple');
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<PreviewResult | null>(null);
   const [importing, setImporting] = useState(false);
@@ -112,7 +130,21 @@ export default function Estoque() {
     salePrice: '',
     costPrice: '',
     currentQuantity: 0,
-    lowStockThreshold: 5
+    lowStockThreshold: 5,
+    sku: '',
+    weight: 0,
+    length: 0,
+    width: 0,
+    height: 0,
+    categoryId: '',
+    brandName: '',
+    manufacturer: '',
+    shortDescription: '',
+    metaTitle: '',
+    metaDescription: '',
+    tags: '',
+    warrantyMonths: 0,
+    observation: ''
   });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -124,10 +156,25 @@ export default function Estoque() {
   const [batchToDelete, setBatchToDelete] = useState<string | null>(null);
   const [productIdForBatchDelete, setProductIdForBatchDelete] = useState<string | null>(null);
   const [deleteProductAfterBatch, setDeleteProductAfterBatch] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [existingProduct, setExistingProduct] = useState<{id: string; name: string} | null>(null);
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar categorias:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -147,6 +194,34 @@ export default function Estoque() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Primeiro, verificar se o produto já existe
+      const checkResponse = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...formData, checkOnly: true }),
+      });
+
+      const checkResult = await checkResponse.json();
+      
+      if (checkResult.exists) {
+        // Produto já existe, mostrar modal para confirmar adição como lote
+        setExistingProduct({ id: checkResult.product.id, name: checkResult.product.name });
+        setShowDuplicateModal(true);
+        return;
+      }
+
+      // Produto não existe, adicionar normalmente
+      await submitProduct();
+    } catch (error) {
+      console.error('Erro ao adicionar produto:', error);
+      toast.error('Erro ao adicionar produto');
+    }
+  };
+
+  const submitProduct = async () => {
+    try {
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: {
@@ -156,8 +231,15 @@ export default function Estoque() {
       });
 
       if (response.ok) {
-        toast.success('Produto adicionado com sucesso!');
+        const result = await response.json();
+        if (result.isNewBatch) {
+          toast.success(`Novo lote adicionado ao produto "${result.productName}"!`);
+        } else {
+          toast.success('Produto adicionado com sucesso!');
+        }
         setShowAddProductModal(false);
+        setShowDuplicateModal(false);
+        setExistingProduct(null);
         resetForm();
         fetchProducts();
       } else {
@@ -168,6 +250,15 @@ export default function Estoque() {
       console.error('Erro ao adicionar produto:', error);
       toast.error('Erro ao adicionar produto');
     }
+  };
+
+  const handleConfirmDuplicate = async () => {
+    await submitProduct();
+  };
+
+  const handleCancelDuplicate = () => {
+    setShowDuplicateModal(false);
+    setExistingProduct(null);
   };
 
   // Funções de edição/exclusão de produtos
@@ -267,7 +358,8 @@ export default function Estoque() {
       salePrice: '',
       costPrice: '',
       currentQuantity: 0,
-      lowStockThreshold: 5
+      lowStockThreshold: 5,
+      observation: ''
     });
   };
 
@@ -604,28 +696,35 @@ export default function Estoque() {
                                 <h4 className="text-sm font-semibold text-foreground mb-3">Lotes:</h4>
                                 <div className="space-y-2">
                                   {product.batches.map((batch) => (
-                                    <div key={batch.id} className="flex items-center justify-between bg-level-2 p-3 rounded-md hover:bg-level-3 transition-colors">
-                                      <div className="text-sm text-muted-foreground">
-                                        <span className="font-medium">Data:</span> {batch.purchaseDate} | 
-                                        <span className="font-medium"> Custo:</span> R$ {parseFloat(batch.costPrice).toFixed(2)} | 
-                                        <span className="font-medium"> Venda:</span> R$ {parseFloat(batch.sellingPrice).toFixed(2)} | 
-                                        <span className="font-medium"> Qtd Recebida:</span> {batch.quantityReceived} | 
-                                        <span className="font-medium"> Restante:</span> {batch.quantityRemaining}
+                                    <div key={batch.id} className="bg-level-2 p-3 rounded-md hover:bg-level-3 transition-colors">
+                                      <div className="flex items-center justify-between">
+                                        <div className="text-sm text-muted-foreground">
+                                          <span className="font-medium">Data:</span> {batch.purchaseDate} | 
+                                          <span className="font-medium"> Custo:</span> R$ {parseFloat(batch.costPrice).toFixed(2)} | 
+                                          <span className="font-medium"> Venda:</span> R$ {parseFloat(batch.sellingPrice).toFixed(2)} | 
+                                          <span className="font-medium"> Qtd Recebida:</span> {batch.quantityReceived} | 
+                                          <span className="font-medium"> Restante:</span> {batch.quantityRemaining}
+                                        </div>
+                                        <div className="flex space-x-2">
+                                          <button
+                                            onClick={() => handleEditBatch(batch)}
+                                            className="px-4 py-1.5 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                                          >
+                                            ✏️ Editar Lote
+                                          </button>
+                                          <button
+                                            onClick={() => handleDeleteBatch(batch.id, product.id)}
+                                            className="px-4 py-1.5 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-red-700 to-pink-700 hover:from-red-600 hover:to-pink-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                                          >
+                                            🗑️ Excluir Lote
+                                          </button>
+                                        </div>
                                       </div>
-                                      <div className="flex space-x-2">
-                                        <button
-                                          onClick={() => handleEditBatch(batch)}
-                                          className="px-4 py-1.5 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
-                                        >
-                                          ✏️ Editar Lote
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteBatch(batch.id, product.id)}
-                                          className="px-4 py-1.5 text-white font-semibold text-sm rounded-lg bg-gradient-to-r from-red-700 to-pink-700 hover:from-red-600 hover:to-pink-600 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
-                                        >
-                                          🗑️ Excluir Lote
-                                        </button>
-                                      </div>
+                                      {batch.observation && (
+                                        <div className="mt-2 text-sm text-muted-foreground bg-level-1 p-2 rounded">
+                                          <span className="font-medium">📝 Obs:</span> {batch.observation}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -1029,6 +1128,51 @@ export default function Estoque() {
         </div>
       )}
 
+      {/* Modal de Produto Duplicado */}
+      {showDuplicateModal && existingProduct && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border border-border w-11/12 max-w-md shadow-lg rounded-lg bg-card">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-card-foreground flex items-center gap-2">
+                  <span className="text-2xl">⚠️</span> Produto já existe
+                </h3>
+                <button
+                  onClick={handleCancelDuplicate}
+                  className="text-card-foreground hover:text-muted-foreground"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
+                <p className="text-card-foreground">
+                  O produto <strong>&quot;{existingProduct.name}&quot;</strong> já está cadastrado no sistema.
+                </p>
+                <p className="text-muted-foreground mt-2 text-sm">
+                  Se continuar, um <strong>novo lote</strong> será adicionado a este produto com a quantidade e preços informados.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={handleCancelDuplicate}
+                  className="px-4 py-2 border border-border rounded-md text-card-foreground hover:bg-accent transition-colors"
+                >
+                  ❌ Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmDuplicate}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-md hover:from-amber-400 hover:to-orange-400 transition-all shadow-md"
+                >
+                  ✅ Adicionar como Lote
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Exclusão de Lote */}
       <Modal
         isOpen={showDeleteBatchModal}
@@ -1101,6 +1245,39 @@ export default function Estoque() {
                 >
                   <span className="text-2xl">&times;</span>
                 </button>
+              </div>
+
+              {/* Seletor de Tipo de Formulário */}
+              <div className="mb-6 p-4 bg-accent/50 rounded-lg border border-border">
+                <label className="block text-sm font-medium text-foreground mb-3">Tipo de Produto</label>
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormType('simple')}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                      formType === 'simple'
+                        ? 'border-primary bg-primary/10 text-primary font-semibold'
+                        : 'border-border bg-background text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="text-lg mb-1">📦</div>
+                    <div className="font-medium">Simples</div>
+                    <div className="text-xs mt-1">Cadastro básico de produtos</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormType('ecommerce')}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                      formType === 'ecommerce'
+                        ? 'border-primary bg-primary/10 text-primary font-semibold'
+                        : 'border-border bg-background text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="text-lg mb-1">🛒</div>
+                    <div className="font-medium">E-commerce</div>
+                    <div className="text-xs mt-1">Com SKU, peso, dimensões, etc</div>
+                  </button>
+                </div>
               </div>
 
               <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1185,6 +1362,187 @@ export default function Estoque() {
                     rows={3}
                   />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-foreground">Observação do Lote</label>
+                  <textarea
+                    value={formData.observation || ''}
+                    onChange={(e) => setFormData({ ...formData, observation: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    rows={2}
+                    placeholder="Observações sobre este lote (ex: fornecedor, condições, etc.)"
+                  />
+                </div>
+
+                {/* Campos Adicionais para E-commerce */}
+                {formType === 'ecommerce' && (
+                  <>
+                    <div className="md:col-span-2 mt-4 pt-4 border-t border-border">
+                      <h4 className="text-md font-semibold text-foreground mb-4">📦 Informações de E-commerce</h4>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">SKU</label>
+                      <input
+                        type="text"
+                        value={formData.sku || ''}
+                        onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="SKU único do produto"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Categoria</label>
+                      <select
+                        value={formData.categoryId || ''}
+                        onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                      >
+                        <option value="">Selecione uma categoria</option>
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Marca</label>
+                      <input
+                        type="text"
+                        value={formData.brandName || ''}
+                        onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="Nome da marca"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Fabricante</label>
+                      <input
+                        type="text"
+                        value={formData.manufacturer || ''}
+                        onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="Nome do fabricante"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 mt-4 pt-4 border-t border-border">
+                      <h4 className="text-md font-semibold text-foreground mb-4">📐 Dimensões e Peso</h4>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Peso (kg)</label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formData.weight || ''}
+                        onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 0 })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="0.000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Comprimento (cm)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.length || ''}
+                        onChange={(e) => setFormData({ ...formData, length: parseFloat(e.target.value) || 0 })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Largura (cm)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.width || ''}
+                        onChange={(e) => setFormData({ ...formData, width: parseFloat(e.target.value) || 0 })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Altura (cm)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.height || ''}
+                        onChange={(e) => setFormData({ ...formData, height: parseFloat(e.target.value) || 0 })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 mt-4 pt-4 border-t border-border">
+                      <h4 className="text-md font-semibold text-foreground mb-4">📝 Informações de Marketing</h4>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-foreground">Descrição Curta</label>
+                      <textarea
+                        value={formData.shortDescription || ''}
+                        onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        rows={2}
+                        placeholder="Breve resumo do produto para listagens"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Meta Title (SEO)</label>
+                      <input
+                        type="text"
+                        value={formData.metaTitle || ''}
+                        onChange={(e) => setFormData({ ...formData, metaTitle: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="Título para SEO"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Tags</label>
+                      <input
+                        type="text"
+                        value={formData.tags || ''}
+                        onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="tag1, tag2, tag3"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">Separe as tags por vírgula</p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-foreground">Meta Description (SEO)</label>
+                      <textarea
+                        value={formData.metaDescription || ''}
+                        onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        rows={2}
+                        placeholder="Descrição para motores de busca (máx 160 caracteres)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">Garantia (meses)</label>
+                      <input
+                        type="number"
+                        value={formData.warrantyMonths || ''}
+                        onChange={(e) => setFormData({ ...formData, warrantyMonths: parseInt(e.target.value) || 0 })}
+                        className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="12"
+                      />
+                    </div>
+                  </>
+                )}
+
                 <div className="md:col-span-2 flex justify-end space-x-3">
                   <button
                     type="button"
