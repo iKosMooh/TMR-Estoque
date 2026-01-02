@@ -41,6 +41,7 @@ interface BatchFormData {
   quantityReceived: number;
   quantityRemaining: number;
   purchaseDate: string;
+  observation?: string;
 }
 
 interface Product {
@@ -382,6 +383,7 @@ export default function Estoque() {
       quantityReceived: batch.quantityReceived,
       quantityRemaining: batch.quantityRemaining,
       purchaseDate: batch.purchaseDate,
+      observation: batch.observation || '',
     });
     setShowBatchModal(true);
   };
@@ -1674,6 +1676,113 @@ export default function Estoque() {
                     className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-500 hover:to-green-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
                   >
                     💾 Atualizar Produto
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Lote */}
+      {showBatchModal && editingBatch && (
+        <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-lg shadow-lg rounded-lg bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-foreground">Editar Lote</h3>
+                <button
+                  onClick={cancelBatchEdit}
+                  className="text-foreground hover:text-muted-foreground"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateBatch} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Data de Compra</label>
+                  <input
+                    type="date"
+                    value={editingBatch.purchaseDate}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, purchaseDate: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Preço de Custo</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingBatch.costPrice}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, costPrice: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Preço de Venda</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingBatch.sellingPrice}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, sellingPrice: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Quantidade Recebida</label>
+                  <input
+                    type="number"
+                    value={editingBatch.quantityReceived}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, quantityReceived: parseInt(e.target.value) || 0 })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                    min="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Quantidade Restante</label>
+                  <input
+                    type="number"
+                    value={editingBatch.quantityRemaining}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, quantityRemaining: parseInt(e.target.value) || 0 })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    required
+                    min="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Observação do Lote</label>
+                  <textarea
+                    value={editingBatch.observation || ''}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, observation: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    rows={3}
+                    placeholder="Observações sobre este lote (ex: fornecedor, condições, etc.)"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={cancelBatchEdit}
+                    className="px-6 py-2.5 text-gray-700 font-semibold rounded-lg bg-white hover:bg-gray-50 border-2 border-gray-300 hover:border-gray-400 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                  >
+                    ❌ Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+                  >
+                    💾 Atualizar Lote
                   </button>
                 </div>
               </form>
