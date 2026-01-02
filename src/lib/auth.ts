@@ -6,8 +6,6 @@ import { db } from './db';
 import { users } from './db/schema';
 import { eq } from 'drizzle-orm';
 
-const NextAuth = require('next-auth');
-
 // Extend the built-in session types
 declare module 'next-auth' {
   interface Session {
@@ -97,7 +95,3 @@ export const authOptions = {
     signIn: '/auth/signin',
   },
 };
-
-const handler = NextAuth(authOptions);
-
-export default handler;
