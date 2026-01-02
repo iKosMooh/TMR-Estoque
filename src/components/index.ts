@@ -9,7 +9,7 @@ export { Modal } from './Modal';
 export * from './Icons';
 
 // Layout Components
-export { Navigation } from './Navigation';
+export { Header } from './Header';
 export { Section } from './Section';
 
 // UI Components

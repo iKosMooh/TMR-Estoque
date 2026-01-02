@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import React from 'react';
-import { PackageIcon, ChartBarIcon, DocumentReportIcon, CogIcon } from '../Icons/index';
-import { NotificationPanel } from '../NotificationPanel';
-import { ThemeToggle } from '../ThemeToggle';
+import { PackageIcon, ChartBarIcon, DocumentReportIcon, ShoppingCartIcon } from './Icons/index';
+import { NotificationPanel } from './NotificationPanel/index';
+import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
   href: string;
@@ -16,27 +17,33 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: <ChartBarIcon className="w-5 h-5" /> },
   { href: '/estoque', label: 'Estoque', icon: <PackageIcon className="w-5 h-5" /> },
+  { href: '/vendas', label: 'Vendas', icon: <ShoppingCartIcon className="w-5 h-5" /> },
   { href: '/relatorios', label: 'Relatórios', icon: <DocumentReportIcon className="w-5 h-5" /> },
-  { href: '/configuracoes', label: 'Configurações', icon: <CogIcon className="w-5 h-5" /> },
 ];
 
-export const Navigation: React.FC = () => {
+export const Header: React.FC = () => {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Navegação principal" className="bg-card border-b border-border shadow-sm transition-colors backdrop-blur-sm bg-card/95">
+    <header aria-label="Cabeçalho principal" className="bg-card border-b border-border shadow-sm transition-colors backdrop-blur-sm bg-card/95 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
               <Link href="/" className="flex items-center text-xl font-bold text-primary hover:text-primary/80 transition-colors">
-                <PackageIcon className="w-8 h-8 mr-2 text-primary" aria-hidden={true} />
+                <Image
+                  src="/Logo.png"
+                  alt="Estoque Simples Logo"
+                  width={32}
+                  height={32}
+                  className="mr-2"
+                />
                 <span>Estoque Simples</span>
               </Link>
             </div>
             <div className="hidden sm:ml-8 sm:flex sm:space-x-2">
               {navItems.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
                 return (
                   <Link
                     key={item.href}
@@ -57,7 +64,7 @@ export const Navigation: React.FC = () => {
               })}
             </div>
           </div>
-          
+
           {/* Theme Toggle Button */}
           <div className="flex items-center space-x-2">
             <NotificationPanel />
@@ -65,6 +72,6 @@ export const Navigation: React.FC = () => {
           </div>
         </div>
       </div>
-    </nav>
+    </header>
   );
 };

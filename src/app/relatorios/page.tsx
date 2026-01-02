@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { LoadingState } from '@/components/Loading';
@@ -116,9 +115,7 @@ export default function Relatorios() {
   };
 
   return (
-    <>
-      <Navigation />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2 flex items-center">
@@ -386,6 +383,5 @@ export default function Relatorios() {
           </>
         )}
       </main>
-    </>
   );
 }

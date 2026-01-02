@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { Toaster } from 'sonner';
 import AuthProvider from '@/components/AuthProvider';
+import { Header } from '@/components/Header';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +20,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Estoque Simples",
   description: "Sistema de Gerenciamento de Estoque",
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -50,6 +54,7 @@ export default function RootLayout({
         <AuthProvider>
           <ThemeProvider>
             <NotificationProvider>
+              <Header />
               {/* Skip to main content link for keyboard navigation */}
               <a
                 href="#main-content"
@@ -58,7 +63,9 @@ export default function RootLayout({
                 Pular para o conteúdo principal
               </a>
 
-              {children}
+              <main id="main-content">
+                {children}
+              </main>
               <Toaster position="top-right" richColors />
             </NotificationProvider>
           </ThemeProvider>

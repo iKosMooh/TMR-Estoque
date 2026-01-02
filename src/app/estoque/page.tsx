@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import { Navigation } from '@/components/Navigation';
 import { SearchBar } from '@/components/SearchBar';
 import { Button } from '@/components/Button';
 import { LoadingState } from '@/components/Loading';
@@ -515,8 +514,6 @@ export default function Estoque() {
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors">
-      <Navigation />
-
       <main id="main-content" className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">

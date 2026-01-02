@@ -11,7 +11,6 @@ import {
 } from 'recharts';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { LoadingState } from '@/components/Loading';
@@ -233,17 +232,12 @@ export default function Home() {
 
   if (loading) {
     return (
-      <>
-        <Navigation />
-        <LoadingState message="Carregando dashboard..." />
-      </>
+      <LoadingState message="Carregando dashboard..." />
     );
   }
 
   return (
-    <>
-      <Navigation />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen bg-background transition-colors">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen bg-background transition-colors">
         {/* Cabeçalho */}
         <Animated animation="fade-in">
           <div className="mb-8">
@@ -634,6 +628,5 @@ export default function Home() {
           </>
         )}
       </main>
-    </>
   );
 }
