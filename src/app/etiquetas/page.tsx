@@ -167,6 +167,10 @@ export default function EtiquetasPage() {
   const [boldCode, setBoldCode] = useState(false);
   const [boldBarcode, setBoldBarcode] = useState(false);
   const [boldPrice, setBoldPrice] = useState(true);
+  const [fontSizeName, setFontSizeName] = useState(9);
+  const [fontSizeCode, setFontSizeCode] = useState(8);
+  const [fontSizeBarcode, setFontSizeBarcode] = useState(7);
+  const [fontSizePrice, setFontSizePrice] = useState(11);
   const [isLoading, setIsLoading] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
@@ -449,45 +453,56 @@ export default function EtiquetasPage() {
               height: ${template.labelHeight}mm;
               display: flex;
               flex-direction: column;
-              justify-content: center;
               align-items: center;
-              overflow: hidden;
               padding: 1mm;
               font-family: Arial, sans-serif;
+              box-sizing: border-box;
+              overflow: hidden;
             }
             
             .label-name {
-              ${boldName ? 'font-weight: bold;' : ''}
-              font-size: ${template.labelHeight < 30 ? '7' : '9'}pt;
+              font-weight: ${boldName ? 'bold' : 'normal'} !important;
+              font-size: ${fontSizeName}pt !important;
               text-align: center;
               overflow: hidden;
               width: 100%;
-              max-height: ${template.labelHeight < 30 ? '10' : '14'}mm;
+              max-height: ${Math.min(template.labelHeight * 0.4, 12)}mm;
               line-height: 1.1;
+              color: ${boldName ? '#000' : '#000'};
+              margin-bottom: 1mm;
+              flex-shrink: 0;
             }
             
             .label-code {
-              ${boldCode ? 'font-weight: bold;' : ''}
-              font-size: ${template.labelHeight < 30 ? '6' : '8'}pt;
-              color: #666;
+              font-weight: ${boldCode ? 'bold' : 'normal'} !important;
+              font-size: ${fontSizeCode}pt !important;
+              color: ${boldCode ? '#000' : '#666'};
+              margin-bottom: 1mm;
+              flex-shrink: 0;
             }
             
             .label-barcode {
               max-width: ${template.labelWidth - 4}mm;
-              max-height: ${template.labelHeight < 30 ? '8' : '12'}mm;
+              max-height: ${Math.min(template.labelHeight * 0.25, 10)}mm;
               margin: 1mm 0;
+              flex-shrink: 0;
             }
             
             .label-barcode-text {
-              ${boldBarcode ? 'font-weight: bold;' : ''}
-              font-size: ${template.labelHeight < 30 ? '6' : '7'}pt;
+              font-weight: ${boldBarcode ? 'bold' : 'normal'} !important;
+              font-size: ${fontSizeBarcode}pt !important;
               letter-spacing: 0.5px;
+              color: ${boldBarcode ? '#000' : '#666'};
+              margin-bottom: 1mm;
+              flex-shrink: 0;
             }
             
             .label-price {
-              ${boldPrice ? 'font-weight: bold;' : ''}
-              font-size: ${template.labelHeight < 30 ? '8' : '11'}pt;
+              font-weight: ${boldPrice ? 'bold' : 'normal'} !important;
+              font-size: ${fontSizePrice}pt !important;
               margin-top: 1mm;
+              color: ${boldPrice ? '#000' : '#000'};
+              flex-shrink: 0;
             }
             
             /* Instruções de impressão */
@@ -776,6 +791,61 @@ export default function EtiquetasPage() {
                   <span className="text-sm">Preço</span>
                 </label>
               </div>
+
+              {/* Tamanhos de Fonte */}
+              <div className="mt-4 space-y-3">
+                <h4 className="text-sm font-medium text-foreground">Tamanhos de Fonte (pt)</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Nome do produto</label>
+                    <input
+                      type="number"
+                      min="6"
+                      max="20"
+                      step="0.5"
+                      value={fontSizeName}
+                      onChange={(e) => setFontSizeName(parseFloat(e.target.value) || 9)}
+                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Código interno</label>
+                    <input
+                      type="number"
+                      min="6"
+                      max="20"
+                      step="0.5"
+                      value={fontSizeCode}
+                      onChange={(e) => setFontSizeCode(parseFloat(e.target.value) || 8)}
+                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Texto do código</label>
+                    <input
+                      type="number"
+                      min="6"
+                      max="20"
+                      step="0.5"
+                      value={fontSizeBarcode}
+                      onChange={(e) => setFontSizeBarcode(parseFloat(e.target.value) || 7)}
+                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Preço</label>
+                    <input
+                      type="number"
+                      min="6"
+                      max="20"
+                      step="0.5"
+                      value={fontSizePrice}
+                      onChange={(e) => setFontSizePrice(parseFloat(e.target.value) || 11)}
+                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Busca de Produtos */}
@@ -990,19 +1060,20 @@ export default function EtiquetasPage() {
                         return (
                           <div
                             key={`${product.id}-${idx}`}
-                            className="border border-gray-300 flex flex-col justify-center items-center overflow-hidden bg-white"
+                            className="border border-gray-300 flex flex-col items-center overflow-hidden bg-white"
                             style={{
                               width: `${getTemplate().labelWidth}mm`,
                               height: `${getTemplate().labelHeight}mm`,
                               padding: '1mm',
                               fontSize: getTemplate().labelHeight < 30 ? '7pt' : '9pt',
+                              boxSizing: 'border-box',
                             }}
                           >
-                            <div className={`text-center overflow-hidden ${boldName ? 'font-bold' : ''}`} style={{ maxHeight: getTemplate().labelHeight < 30 ? '10mm' : '14mm', lineHeight: 1.1 }}>
+                            <div className={`text-center overflow-hidden ${boldName ? 'font-bold' : ''}`} style={{ maxHeight: `${Math.min(getTemplate().labelHeight * 0.4, 12)}mm`, lineHeight: 1.1, fontSize: `${fontSizeName}pt`, marginBottom: '1mm', flexShrink: 0 }}>
                               {product.name.length > 40 ? product.name.substring(0, 40) + '...' : product.name}
                             </div>
                             {showCode && (
-                              <div className={`text-gray-600 ${boldCode ? 'font-bold' : ''}`} style={{ fontSize: getTemplate().labelHeight < 30 ? '6pt' : '8pt' }}>
+                              <div className={`${boldCode ? 'font-bold text-black' : 'text-gray-600'}`} style={{ fontSize: `${fontSizeCode}pt`, marginBottom: '1mm', flexShrink: 0 }}>
                                 {product.internalCode}
                               </div>
                             )}
@@ -1027,16 +1098,18 @@ export default function EtiquetasPage() {
                                   }}
                                   style={{
                                     maxWidth: `${getTemplate().labelWidth - 4}mm`,
+                                    maxHeight: `${Math.min(getTemplate().labelHeight * 0.25, 10)}mm`,
                                     margin: '1mm 0',
+                                    flexShrink: 0,
                                   }}
                                 />
-                                <div className={`${boldBarcode ? 'font-bold' : ''}`} style={{ fontSize: getTemplate().labelHeight < 30 ? '6pt' : '7pt', letterSpacing: '0.5px' }}>
+                                <div className={`${boldBarcode ? 'font-bold text-black' : 'text-gray-600'}`} style={{ fontSize: `${fontSizeBarcode}pt`, letterSpacing: '0.5px', marginBottom: '1mm', flexShrink: 0 }}>
                                   {barcodeValue}
                                 </div>
                               </>
                             )}
                             {showPrice && (
-                              <div className={`${boldPrice ? 'font-bold' : ''}`} style={{ fontSize: getTemplate().labelHeight < 30 ? '8pt' : '11pt', marginTop: '1mm' }}>
+                              <div className={`${boldPrice ? 'font-bold' : ''}`} style={{ fontSize: `${fontSizePrice}pt`, marginTop: '1mm', flexShrink: 0 }}>
                                 {formatCurrency(product.salePrice)}
                               </div>
                             )}
