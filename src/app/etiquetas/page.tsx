@@ -189,9 +189,12 @@ export default function EtiquetasPage() {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    if (isSearchFocused) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isSearchFocused]);
 
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -612,37 +615,53 @@ export default function EtiquetasPage() {
                 {/* Dropdown de resultados - só mostra quando em foco */}
                 {isSearchFocused && searchTerm.length >= 1 && (
                     <div className="absolute top-full left-0 right-0 border border-border rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto" style={{ backgroundColor: 'var(--card)' }}>
-                    {filteredProducts.length === 0 ? (
-                      <div className="p-4 text-center text-muted-foreground">
-                        Nenhum produto encontrado para &quot;{searchTerm}&quot;
-                      </div>
-                    ) : (
-                      filteredProducts.slice(0, 10).map((product) => (
-                        <div
-                          key={product.id}
-                          onClick={() => addProduct(product)}
-                          className="flex items-center justify-between p-3 border-b border-border last:border-b-0 hover:bg-level-1 cursor-pointer"
+                      {/* Header com botão fechar */}
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-level-1">
+                        <span className="text-sm font-medium text-foreground">
+                          {filteredProducts.length} resultado{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
+                        </span>
+                        <button
+                          onClick={() => setIsSearchFocused(false)}
+                          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-level-2"
+                          title="Fechar busca"
                         >
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm text-foreground truncate">{product.name}</div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              Cód: {product.internalCode}
-                              {product.barcode && ` | Barras: ${product.barcode}`}
-                            </div>
-                            <div className="text-sm font-semibold text-green-600">
-                              {formatCurrency(product.salePrice)}
-                            </div>
-                          </div>
-                          <button
-                            className="ml-2 px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm flex-shrink-0"
-                          >
-                            Adicionar
-                          </button>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {filteredProducts.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground">
+                          Nenhum produto encontrado para &quot;{searchTerm}&quot;
                         </div>
-                      ))
-                    )}
-                  </div>
-                )}
+                      ) : (
+                        filteredProducts.slice(0, 10).map((product) => (
+                          <div
+                            key={product.id}
+                            onClick={() => addProduct(product)}
+                            className="flex items-center justify-between p-3 border-b border-border last:border-b-0 hover:bg-level-1 cursor-pointer"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-foreground truncate">{product.name}</div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                Cód: {product.internalCode}
+                                {product.barcode && ` | Barras: ${product.barcode}`}
+                              </div>
+                              <div className="text-sm font-semibold text-green-600">
+                                {formatCurrency(product.salePrice)}
+                              </div>
+                            </div>
+                            <button
+                              className="ml-2 px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm flex-shrink-0"
+                            >
+                              Adicionar
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
               </div>
 
               {/* Indicador quando não há produtos carregados */}
