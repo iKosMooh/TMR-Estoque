@@ -163,6 +163,10 @@ export default function EtiquetasPage() {
   const [showPrice, setShowPrice] = useState(true);
   const [showBarcode, setShowBarcode] = useState(true);
   const [showCode, setShowCode] = useState(true);
+  const [boldName, setBoldName] = useState(true);
+  const [boldCode, setBoldCode] = useState(false);
+  const [boldBarcode, setBoldBarcode] = useState(false);
+  const [boldPrice, setBoldPrice] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
@@ -453,7 +457,7 @@ export default function EtiquetasPage() {
             }
             
             .label-name {
-              font-weight: bold;
+              ${boldName ? 'font-weight: bold;' : ''}
               font-size: ${template.labelHeight < 30 ? '7' : '9'}pt;
               text-align: center;
               overflow: hidden;
@@ -463,6 +467,7 @@ export default function EtiquetasPage() {
             }
             
             .label-code {
+              ${boldCode ? 'font-weight: bold;' : ''}
               font-size: ${template.labelHeight < 30 ? '6' : '8'}pt;
               color: #666;
             }
@@ -474,12 +479,13 @@ export default function EtiquetasPage() {
             }
             
             .label-barcode-text {
+              ${boldBarcode ? 'font-weight: bold;' : ''}
               font-size: ${template.labelHeight < 30 ? '6' : '7'}pt;
               letter-spacing: 0.5px;
             }
             
             .label-price {
-              font-weight: bold;
+              ${boldPrice ? 'font-weight: bold;' : ''}
               font-size: ${template.labelHeight < 30 ? '8' : '11'}pt;
               margin-top: 1mm;
             }
@@ -729,6 +735,47 @@ export default function EtiquetasPage() {
                   <span className="text-sm">Exibir código interno</span>
                 </label>
               </div>
+
+              {/* Opções de Formatação */}
+              <div className="mt-4 space-y-2">
+                <h4 className="text-sm font-medium text-foreground">Formatação (Negrito)</h4>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={boldName}
+                    onChange={(e) => setBoldName(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">Nome do produto</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={boldCode}
+                    onChange={(e) => setBoldCode(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">Código interno</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={boldBarcode}
+                    onChange={(e) => setBoldBarcode(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">Texto do código de barras</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={boldPrice}
+                    onChange={(e) => setBoldPrice(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">Preço</span>
+                </label>
+              </div>
             </div>
 
             {/* Busca de Produtos */}
@@ -951,11 +998,11 @@ export default function EtiquetasPage() {
                               fontSize: getTemplate().labelHeight < 30 ? '7pt' : '9pt',
                             }}
                           >
-                            <div className="font-bold text-center overflow-hidden" style={{ maxHeight: getTemplate().labelHeight < 30 ? '10mm' : '14mm', lineHeight: 1.1 }}>
+                            <div className={`text-center overflow-hidden ${boldName ? 'font-bold' : ''}`} style={{ maxHeight: getTemplate().labelHeight < 30 ? '10mm' : '14mm', lineHeight: 1.1 }}>
                               {product.name.length > 40 ? product.name.substring(0, 40) + '...' : product.name}
                             </div>
                             {showCode && (
-                              <div className="text-gray-600" style={{ fontSize: getTemplate().labelHeight < 30 ? '6pt' : '8pt' }}>
+                              <div className={`text-gray-600 ${boldCode ? 'font-bold' : ''}`} style={{ fontSize: getTemplate().labelHeight < 30 ? '6pt' : '8pt' }}>
                                 {product.internalCode}
                               </div>
                             )}
@@ -983,13 +1030,13 @@ export default function EtiquetasPage() {
                                     margin: '1mm 0',
                                   }}
                                 />
-                                <div style={{ fontSize: getTemplate().labelHeight < 30 ? '6pt' : '7pt', letterSpacing: '0.5px' }}>
+                                <div className={`${boldBarcode ? 'font-bold' : ''}`} style={{ fontSize: getTemplate().labelHeight < 30 ? '6pt' : '7pt', letterSpacing: '0.5px' }}>
                                   {barcodeValue}
                                 </div>
                               </>
                             )}
                             {showPrice && (
-                              <div className="font-bold" style={{ fontSize: getTemplate().labelHeight < 30 ? '8pt' : '11pt', marginTop: '1mm' }}>
+                              <div className={`${boldPrice ? 'font-bold' : ''}`} style={{ fontSize: getTemplate().labelHeight < 30 ? '8pt' : '11pt', marginTop: '1mm' }}>
                                 {formatCurrency(product.salePrice)}
                               </div>
                             )}
