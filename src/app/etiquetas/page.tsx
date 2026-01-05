@@ -158,6 +158,7 @@ export default function EtiquetasPage() {
   const [previewMode, setPreviewMode] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -176,6 +177,21 @@ export default function EtiquetasPage() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  // Detectar clique fora do container de busca para fechar o dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsSearchFocused(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -211,6 +227,8 @@ export default function EtiquetasPage() {
     } else {
       setLabelItems([...labelItems, { product, quantity: 1 }]);
     }
+    setSearchTerm('');
+    setIsSearchFocused(false);
     toast.success(`${product.name} adicionado`);
   };
 
@@ -580,17 +598,13 @@ export default function EtiquetasPage() {
               <h2 className="text-lg font-semibold text-foreground mb-4">Adicionar Produtos</h2>
               
               {/* Campo de busca com dropdown */}
-              <div className="relative">
+              <div className="relative" ref={searchContainerRef}>
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => {
-                    // Delay para permitir click no dropdown
-                    setTimeout(() => setIsSearchFocused(false), 200);
-                  }}
                   placeholder="Buscar por nome, código interno ou código de barras..."
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
