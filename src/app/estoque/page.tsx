@@ -159,6 +159,51 @@ export default function Estoque() {
   const [deleteProductAfterBatch, setDeleteProductAfterBatch] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [existingProduct, setExistingProduct] = useState<{id: string; name: string} | null>(null);
+  const [markupPercentage, setMarkupPercentage] = useState<string>('');
+
+  // Funções para calcular preço de venda com base no custo e margem
+  const calculateSalePriceFromMarkup = (costPrice: string, markup: string): string => {
+    const cost = parseFloat(costPrice) || 0;
+    const markupValue = parseFloat(markup) || 0;
+    if (cost <= 0) return '';
+    const salePrice = cost * (1 + markupValue / 100);
+    return salePrice.toFixed(2);
+  };
+
+  const calculateMarkupFromPrices = (costPrice: string, salePrice: string): string => {
+    const cost = parseFloat(costPrice) || 0;
+    const sale = parseFloat(salePrice) || 0;
+    if (cost <= 0 || sale <= 0) return '';
+    const markup = ((sale - cost) / cost) * 100;
+    return markup.toFixed(2);
+  };
+
+  const handleCostPriceChange = (value: string) => {
+    setFormData({ ...formData, costPrice: value });
+    // Se tiver margem definida, recalcula o preço de venda
+    if (markupPercentage && parseFloat(markupPercentage) > 0) {
+      const newSalePrice = calculateSalePriceFromMarkup(value, markupPercentage);
+      if (newSalePrice) {
+        setFormData(prev => ({ ...prev, costPrice: value, salePrice: newSalePrice }));
+      }
+    }
+  };
+
+  const handleSalePriceChange = (value: string) => {
+    setFormData({ ...formData, salePrice: value });
+    // Recalcula a margem baseada no novo preço
+    const newMarkup = calculateMarkupFromPrices(formData.costPrice, value);
+    setMarkupPercentage(newMarkup);
+  };
+
+  const handleMarkupChange = (value: string) => {
+    setMarkupPercentage(value);
+    // Recalcula o preço de venda com base na margem
+    const newSalePrice = calculateSalePriceFromMarkup(formData.costPrice, value);
+    if (newSalePrice) {
+      setFormData({ ...formData, salePrice: newSalePrice });
+    }
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -362,6 +407,7 @@ export default function Estoque() {
       lowStockThreshold: 5,
       observation: ''
     });
+    setMarkupPercentage('');
   };
 
   const cancelEdit = () => {
@@ -1313,26 +1359,49 @@ export default function Estoque() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground">Preço de Venda</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.salePrice}
-                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
-                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-foreground">Preço de Custo</label>
                   <input
                     type="number"
                     step="0.01"
                     value={formData.costPrice}
-                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                    onChange={(e) => handleCostPriceChange(e.target.value)}
                     className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                     required
                   />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">Preço de Venda</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Valor (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.salePrice}
+                        onChange={(e) => handleSalePriceChange(e.target.value)}
+                        className="block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Margem (%)</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={markupPercentage}
+                          onChange={(e) => handleMarkupChange(e.target.value)}
+                          className="block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 pr-8 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                          placeholder="0.00"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Altere o valor ou a margem - o outro será calculado automaticamente
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground">Quantidade Inicial</label>

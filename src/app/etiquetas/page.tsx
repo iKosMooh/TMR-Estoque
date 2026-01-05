@@ -13,77 +13,110 @@ interface Product {
   costPrice: string;
 }
 
+// Constantes de folha A4 (em mm)
+const A4_WIDTH = 210;
+const A4_HEIGHT = 297;
+
 // Modelos de etiqueta A4 (em mm)
+// labelWidth/labelHeight = dimensões da ETIQUETA
+// marginTop/marginLeft/marginRight/marginBottom = margens da FOLHA
+// spacingX/spacingY = espaçamento entre etiquetas
 const labelTemplates = {
+  'ca4348-a4348': {
+    name: 'CA4348 / Pimaco A4348 - 96 por folha',
+    description: '6 colunas x 16 linhas - Etiqueta: 31mm x 17mm',
+    cols: 6,
+    rows: 16,
+    labelWidth: 31,
+    labelHeight: 17,
+    marginTop: 10.6,
+    marginLeft: 8.5,
+    marginRight: 8.5,
+    marginBottom: 10.6,
+    spacingX: 3.3,
+    spacingY: 0,
+  },
   'pimaco-6080': {
     name: 'Pimaco 6080 - 10 por folha',
-    description: '2 colunas x 5 linhas (50,8mm x 101,6mm)',
+    description: '2 colunas x 5 linhas - Etiqueta: 101,6mm x 50,8mm',
     cols: 2,
     rows: 5,
     labelWidth: 101.6,
     labelHeight: 50.8,
     marginTop: 12.7,
     marginLeft: 4.7,
+    marginRight: 4.7,
+    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6181': {
     name: 'Pimaco 6181 - 20 por folha',
-    description: '4 colunas x 5 linhas (25,4mm x 101,6mm)',
+    description: '4 colunas x 5 linhas - Etiqueta: 50,8mm x 25,4mm',
     cols: 4,
     rows: 5,
     labelWidth: 50.8,
     labelHeight: 25.4,
     marginTop: 21.2,
     marginLeft: 4.7,
+    marginRight: 4.7,
+    marginBottom: 21.2,
     spacingX: 0,
     spacingY: 0,
   },
   'pimaco-6082': {
     name: 'Pimaco 6082 - 14 por folha',
-    description: '2 colunas x 7 linhas (33,9mm x 101,6mm)',
+    description: '2 colunas x 7 linhas - Etiqueta: 101,6mm x 33,9mm',
     cols: 2,
     rows: 7,
     labelWidth: 101.6,
     labelHeight: 33.9,
     marginTop: 12.7,
     marginLeft: 4.7,
+    marginRight: 4.7,
+    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6083': {
     name: 'Pimaco 6083 - 21 por folha',
-    description: '3 colunas x 7 linhas (38,1mm x 63,5mm)',
+    description: '3 colunas x 7 linhas - Etiqueta: 63,5mm x 38,1mm',
     cols: 3,
     rows: 7,
     labelWidth: 63.5,
     labelHeight: 38.1,
     marginTop: 12.7,
     marginLeft: 8,
+    marginRight: 8,
+    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6184': {
     name: 'Pimaco 6184 - 65 por folha',
-    description: '5 colunas x 13 linhas (21,2mm x 38,1mm)',
+    description: '5 colunas x 13 linhas - Etiqueta: 38,1mm x 21,2mm',
     cols: 5,
     rows: 13,
     labelWidth: 38.1,
     labelHeight: 21.2,
     marginTop: 12.7,
     marginLeft: 8,
+    marginRight: 8,
+    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6287': {
     name: 'Pimaco 6287 - 33 por folha',
-    description: '3 colunas x 11 linhas (25,4mm x 66,7mm)',
+    description: '3 colunas x 11 linhas - Etiqueta: 66,7mm x 25,4mm',
     cols: 3,
     rows: 11,
     labelWidth: 66.7,
     labelHeight: 25.4,
     marginTop: 12.7,
     marginLeft: 4.2,
+    marginRight: 4.2,
+    marginBottom: 12.7,
     spacingX: 2,
     spacingY: 0,
   },
@@ -96,6 +129,8 @@ const labelTemplates = {
     labelHeight: 38.1,
     marginTop: 12.7,
     marginLeft: 8,
+    marginRight: 8,
+    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
@@ -112,7 +147,8 @@ export default function EtiquetasPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey>('pimaco-6083');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey>('ca4348-a4348');
   const [customTemplate, setCustomTemplate] = useState(labelTemplates['custom']);
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
   const [showPrice, setShowPrice] = useState(true);
@@ -121,6 +157,7 @@ export default function EtiquetasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -253,14 +290,19 @@ export default function EtiquetasPage() {
         <div class="page" style="
           width: 210mm;
           height: 297mm;
-          padding-top: ${template.marginTop}mm;
-          padding-left: ${template.marginLeft}mm;
           box-sizing: border-box;
           display: flex;
-          flex-wrap: wrap;
-          align-content: flex-start;
+          justify-content: center;
           page-break-after: ${page < pages - 1 ? 'always' : 'auto'};
         ">
+          <div style="
+            padding-top: ${template.marginTop}mm;
+            display: grid;
+            grid-template-columns: repeat(${template.cols}, ${template.labelWidth}mm);
+            grid-template-rows: repeat(${template.rows}, ${template.labelHeight}mm);
+            gap: ${template.spacingY}mm ${template.spacingX}mm;
+            align-content: start;
+          ">
           ${pageLabels.map((product, idx) => {
             const barcodeValue = product.barcode || product.internalCode;
             const barcodeImg = showBarcode ? generateBarcode(barcodeValue) : '';
@@ -269,8 +311,6 @@ export default function EtiquetasPage() {
               <div class="label" style="
                 width: ${template.labelWidth}mm;
                 height: ${template.labelHeight}mm;
-                margin-right: ${(idx + 1) % template.cols === 0 ? 0 : template.spacingX}mm;
-                margin-bottom: ${template.spacingY}mm;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
@@ -290,6 +330,7 @@ export default function EtiquetasPage() {
               </div>
             `;
           }).join('')}
+          </div>
         </div>
       `;
     }
@@ -363,64 +404,141 @@ export default function EtiquetasPage() {
               <p className="text-sm text-muted-foreground mt-2">{getTemplate().description}</p>
 
               {selectedTemplate === 'custom' && (
-                <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="mt-4 space-y-4">
+                  {/* Dimensões da Etiqueta */}
                   <div>
-                    <label className="block text-xs text-muted-foreground">Colunas</label>
-                    <input
-                      type="number"
-                      value={customTemplate.cols}
-                      onChange={(e) => setCustomTemplate({ ...customTemplate, cols: parseInt(e.target.value) || 1 })}
-                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                    />
+                    <h4 className="text-sm font-medium text-foreground mb-2">Dimensões da Etiqueta</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Largura (mm)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.labelWidth}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, labelWidth: parseFloat(e.target.value) || 10 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Altura (mm)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.labelHeight}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, labelHeight: parseFloat(e.target.value) || 10 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Layout da Folha */}
                   <div>
-                    <label className="block text-xs text-muted-foreground">Linhas</label>
-                    <input
-                      type="number"
-                      value={customTemplate.rows}
-                      onChange={(e) => setCustomTemplate({ ...customTemplate, rows: parseInt(e.target.value) || 1 })}
-                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                    />
+                    <h4 className="text-sm font-medium text-foreground mb-2">Layout da Folha (A4)</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Colunas</label>
+                        <input
+                          type="number"
+                          value={customTemplate.cols}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, cols: parseInt(e.target.value) || 1 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                          min="1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Linhas</label>
+                        <input
+                          type="number"
+                          value={customTemplate.rows}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, rows: parseInt(e.target.value) || 1 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                          min="1"
+                        />
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Margens da Folha */}
                   <div>
-                    <label className="block text-xs text-muted-foreground">Largura (mm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={customTemplate.labelWidth}
-                      onChange={(e) => setCustomTemplate({ ...customTemplate, labelWidth: parseFloat(e.target.value) || 10 })}
-                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                    />
+                    <h4 className="text-sm font-medium text-foreground mb-2">Margens da Folha (mm)</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Superior</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.marginTop}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginTop: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Esquerda</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.marginLeft}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginLeft: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Direita</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.marginRight}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginRight: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Inferior</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.marginBottom}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginBottom: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Espaçamento entre Etiquetas */}
                   <div>
-                    <label className="block text-xs text-muted-foreground">Altura (mm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={customTemplate.labelHeight}
-                      onChange={(e) => setCustomTemplate({ ...customTemplate, labelHeight: parseFloat(e.target.value) || 10 })}
-                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                    />
+                    <h4 className="text-sm font-medium text-foreground mb-2">Espaçamento entre Etiquetas (mm)</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Horizontal</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.spacingX}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, spacingX: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground">Vertical</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customTemplate.spacingY}
+                          onChange={(e) => setCustomTemplate({ ...customTemplate, spacingY: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground">Margem Superior (mm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={customTemplate.marginTop}
-                      onChange={(e) => setCustomTemplate({ ...customTemplate, marginTop: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground">Margem Esquerda (mm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={customTemplate.marginLeft}
-                      onChange={(e) => setCustomTemplate({ ...customTemplate, marginLeft: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                    />
+
+                  {/* Info calculada */}
+                  <div className="p-3 bg-level-1 rounded-lg text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground mb-1">Informações Calculadas:</div>
+                    <div>{customTemplate.cols * customTemplate.rows} etiquetas por folha</div>
+                    <div>Etiqueta: {customTemplate.labelWidth}mm x {customTemplate.labelHeight}mm</div>
+                    <div>Folha A4: 210mm x 297mm</div>
                   </div>
                 </div>
               )}
@@ -464,16 +582,22 @@ export default function EtiquetasPage() {
               {/* Campo de busca com dropdown */}
               <div className="relative">
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => {
+                    // Delay para permitir click no dropdown
+                    setTimeout(() => setIsSearchFocused(false), 200);
+                  }}
                   placeholder="Buscar por nome, código interno ou código de barras..."
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 
-                {/* Dropdown de resultados */}
-                {searchTerm.length >= 1 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 max-h-80 overflow-y-auto">
+                {/* Dropdown de resultados - só mostra quando em foco */}
+                {isSearchFocused && searchTerm.length >= 1 && (
+                    <div className="absolute top-full left-0 right-0 border border-border rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto" style={{ backgroundColor: 'var(--card)' }}>
                     {filteredProducts.length === 0 ? (
                       <div className="p-4 text-center text-muted-foreground">
                         Nenhum produto encontrado para &quot;{searchTerm}&quot;
@@ -483,7 +607,7 @@ export default function EtiquetasPage() {
                         <div
                           key={product.id}
                           onClick={() => addProduct(product)}
-                          className="flex items-center justify-between p-3 border-b border-border last:border-b-0 hover:bg-level-1 cursor-pointer transition-colors"
+                          className="flex items-center justify-between p-3 border-b border-border last:border-b-0 hover:bg-level-1 cursor-pointer"
                         >
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm text-foreground truncate">{product.name}</div>
@@ -637,9 +761,11 @@ export default function EtiquetasPage() {
                     style={{
                       paddingTop: `${getTemplate().marginTop}mm`,
                       paddingLeft: `${getTemplate().marginLeft}mm`,
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      alignContent: 'flex-start',
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${getTemplate().cols}, ${getTemplate().labelWidth}mm)`,
+                      gridTemplateRows: `repeat(${getTemplate().rows}, ${getTemplate().labelHeight}mm)`,
+                      gap: `${getTemplate().spacingY}mm ${getTemplate().spacingX}mm`,
+                      alignContent: 'start',
                     }}
                   >
                     {generateLabelsArray()
@@ -653,8 +779,6 @@ export default function EtiquetasPage() {
                             style={{
                               width: `${getTemplate().labelWidth}mm`,
                               height: `${getTemplate().labelHeight}mm`,
-                              marginRight: (idx + 1) % getTemplate().cols === 0 ? 0 : `${getTemplate().spacingX}mm`,
-                              marginBottom: `${getTemplate().spacingY}mm`,
                               padding: '1mm',
                               fontSize: getTemplate().labelHeight < 30 ? '7pt' : '9pt',
                             }}

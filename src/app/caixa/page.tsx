@@ -84,10 +84,14 @@ export default function PDV() {
   const [warrantyPrice, setWarrantyPrice] = useState(0);
   const [notes, setNotes] = useState('');
   
-  // Estados para mão de obra
   const [showLaborModal, setShowLaborModal] = useState(false);
   const [laborDescription, setLaborDescription] = useState('');
   const [laborPrice, setLaborPrice] = useState('');
+  
+  // Estados para controle de preço com margem
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingPrice, setEditingPrice] = useState('');
+  const [editingMarkup, setEditingMarkup] = useState('');
   
   // Estados para recibo
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -95,6 +99,60 @@ export default function PDV() {
   const [printSize, setPrintSize] = useState<'A4' | 'A5'>('A5');
   
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Funções para calcular preço com margem
+  const calculatePriceFromMarkup = (basePrice: number, markup: string): string => {
+    const markupValue = parseFloat(markup) || 0;
+    if (basePrice <= 0) return '';
+    const finalPrice = basePrice * (1 + markupValue / 100);
+    return finalPrice.toFixed(2);
+  };
+
+  const calculateMarkupFromPrices = (basePrice: number, finalPrice: string): string => {
+    const final = parseFloat(finalPrice) || 0;
+    if (basePrice <= 0 || final <= 0) return '';
+    const markup = ((final - basePrice) / basePrice) * 100;
+    return markup.toFixed(2);
+  };
+
+  const startEditingPrice = (item: CartItem) => {
+    setEditingItemId(item.id);
+    setEditingPrice(item.unitPrice.toFixed(2));
+    setEditingMarkup('');
+  };
+
+  const handleEditingPriceChange = (value: string) => {
+    setEditingPrice(value);
+    const item = cart.find(i => i.id === editingItemId);
+    if (item && item.product) {
+      const markup = calculateMarkupFromPrices(parseFloat(item.product.salePrice), value);
+      setEditingMarkup(markup);
+    }
+  };
+
+  const handleEditingMarkupChange = (value: string) => {
+    setEditingMarkup(value);
+    const item = cart.find(i => i.id === editingItemId);
+    if (item && item.product) {
+      const price = calculatePriceFromMarkup(parseFloat(item.product.salePrice), value);
+      setEditingPrice(price);
+    }
+  };
+
+  const savePriceEdit = () => {
+    if (editingItemId && editingPrice) {
+      updatePrice(editingItemId, parseFloat(editingPrice));
+      setEditingItemId(null);
+      setEditingPrice('');
+      setEditingMarkup('');
+    }
+  };
+
+  const cancelPriceEdit = () => {
+    setEditingItemId(null);
+    setEditingPrice('');
+    setEditingMarkup('');
+  };
 
   // Carregar produtos
   const fetchProducts = useCallback(async () => {
@@ -690,13 +748,45 @@ export default function PDV() {
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-xs text-muted-foreground">R$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={item.unitPrice.toFixed(2)}
-                            onChange={(e) => updatePrice(item.id, parseFloat(e.target.value) || 0)}
-                            className="w-20 px-1 py-0.5 text-xs border border-border rounded bg-background text-foreground"
-                          />
+                          {editingItemId === item.id ? (
+                            <div className="flex gap-1">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editingPrice}
+                                onChange={(e) => handleEditingPriceChange(e.target.value)}
+                                className="w-16 px-1 py-0.5 text-xs border border-border rounded bg-background text-foreground"
+                                autoFocus
+                              />
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editingMarkup}
+                                onChange={(e) => handleEditingMarkupChange(e.target.value)}
+                                placeholder="%"
+                                className="w-12 px-1 py-0.5 text-xs border border-border rounded bg-background text-foreground"
+                              />
+                              <button
+                                onClick={savePriceEdit}
+                                className="text-xs text-success hover:text-success/80"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={cancelPriceEdit}
+                                className="text-xs text-error hover:text-error/80"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startEditingPrice(item)}
+                              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                            >
+                              {item.unitPrice.toFixed(2)}
+                            </button>
+                          )}
                         </div>
                       </div>
                       <button

@@ -99,7 +99,7 @@ export const Header: React.FC = () => {
                 </button>
                 
                 {isDropdownOpen && (
-                  <div className="absolute left-0 mt-2 w-56 rounded-lg shadow-lg bg-card border border-border py-2 z-50">
+                  <div className="absolute left-0 mt-2 w-56 rounded-lg shadow-lg border border-border py-2 z-50" style={{ backgroundColor: 'var(--palette-0)' }}>
                     {cadastrosItems.map((item) => {
                       const isActive = pathname === item.href;
                       return (

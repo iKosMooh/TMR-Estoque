@@ -59,6 +59,7 @@ export default function Vendas() {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [customPrice, setCustomPrice] = useState('');
+  const [customMarkup, setCustomMarkup] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Estados para finalização
@@ -82,6 +83,41 @@ export default function Vendas() {
   const [printSize, setPrintSize] = useState<'A4' | 'A5'>('A5');
   
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Funções para calcular preço com margem
+  const calculatePriceFromMarkup = (basePrice: string, markup: string): string => {
+    const base = parseFloat(basePrice) || 0;
+    const markupValue = parseFloat(markup) || 0;
+    if (base <= 0) return '';
+    const finalPrice = base * (1 + markupValue / 100);
+    return finalPrice.toFixed(2);
+  };
+
+  const calculateMarkupFromPrices = (basePrice: string, finalPrice: string): string => {
+    const base = parseFloat(basePrice) || 0;
+    const final = parseFloat(finalPrice) || 0;
+    if (base <= 0 || final <= 0) return '';
+    const markup = ((final - base) / base) * 100;
+    return markup.toFixed(2);
+  };
+
+  const handleCustomPriceChange = (value: string) => {
+    setCustomPrice(value);
+    // Recalcula a margem baseada no preço
+    if (selectedProduct) {
+      const markup = calculateMarkupFromPrices(selectedProduct.salePrice, value);
+      setCustomMarkup(markup);
+    }
+  };
+
+  const handleCustomMarkupChange = (value: string) => {
+    setCustomMarkup(value);
+    // Recalcula o preço baseado na margem
+    if (selectedProduct) {
+      const price = calculatePriceFromMarkup(selectedProduct.salePrice, value);
+      setCustomPrice(price);
+    }
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -131,6 +167,7 @@ export default function Vendas() {
       return;
     }
 
+    // Usa preço personalizado se definido, senão usa o preço base do produto
     const unitPrice = customPrice ? parseFloat(customPrice) : parseFloat(selectedProduct.salePrice);
     const total = unitPrice * quantity;
 
@@ -148,6 +185,7 @@ export default function Vendas() {
     setSelectedProduct(null);
     setQuantity(1);
     setCustomPrice('');
+    setCustomMarkup('');
     setSearchTerm('');
     searchInputRef.current?.focus();
     toast.success('Produto adicionado');
@@ -450,6 +488,7 @@ export default function Vendas() {
                             onClick={() => {
                               setSelectedProduct(product);
                               setCustomPrice(product.salePrice);
+                              setCustomMarkup('');
                               setSearchTerm('');
                             }}
                             className="p-3 hover:bg-level-3 cursor-pointer border-b border-border last:border-b-0 transition-colors"
@@ -483,14 +522,33 @@ export default function Vendas() {
                           onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
                           label="Quantidade"
                         />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={customPrice}
-                          onChange={(e) => setCustomPrice(e.target.value)}
-                          label="Preço Unit. (R$)"
-                          placeholder="Personalizado"
-                        />
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-1">Preço Unitário</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={customPrice}
+                              onChange={(e) => handleCustomPriceChange(e.target.value)}
+                              placeholder={selectedProduct.salePrice}
+                              className="px-3 py-2 border border-input rounded-md shadow-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                            />
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={customMarkup}
+                                onChange={(e) => handleCustomMarkupChange(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full px-3 py-2 pr-8 border border-input rounded-md shadow-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Valor ou margem sobre o preço base
+                          </p>
+                        </div>
                         <div className="flex items-end">
                           <Button onClick={addToSale} variant="success" className="w-full">
                             Adicionar
@@ -596,7 +654,6 @@ export default function Vendas() {
           </div>
         </div>
       </main>
-
       {/* Modal de Mão de Obra */}
       <Modal
         isOpen={showLaborModal}
@@ -604,7 +661,8 @@ export default function Vendas() {
         title="Adicionar Mão de Obra"
         size="md"
       >
-        <div className="space-y-4">
+        <div className="bg-level-1 rounded-lg p-6 -m-6">
+          <div className="space-y-4">
           <Input
             label="Descrição do Serviço"
             value={laborDescription}
@@ -627,6 +685,7 @@ export default function Vendas() {
               Adicionar
             </Button>
           </div>
+        </div>
         </div>
       </Modal>
 
