@@ -17,120 +17,109 @@ interface Product {
 const A4_WIDTH = 210;
 const A4_HEIGHT = 297;
 
-// Modelos de etiqueta A4 (em mm)
+// Constantes de folha Carta/Letter (em mm)
+const LETTER_WIDTH = 216;
+const LETTER_HEIGHT = 279;
+
+// Função para obter dimensões da página
+const getPageSize = (pageSize: 'A4' | 'letter') => {
+  if (pageSize === 'letter') {
+    return { width: LETTER_WIDTH, height: LETTER_HEIGHT };
+  }
+  return { width: A4_WIDTH, height: A4_HEIGHT };
+};
+
+// Modelos de etiqueta (em mm)
+// pageSize: 'A4' ou 'letter' (Carta)
 // labelWidth/labelHeight = dimensões da ETIQUETA
-// marginTop/marginLeft/marginRight/marginBottom = margens da FOLHA
 // spacingX/spacingY = espaçamento entre etiquetas
+// Margens são calculadas automaticamente para centralizar
 const labelTemplates = {
   'ca4348-a4348': {
     name: 'CA4348 / Pimaco A4348 - 96 por folha',
-    description: '6 colunas x 16 linhas - Etiqueta: 31mm x 17mm',
+    description: '6 colunas x 16 linhas - Etiqueta: 31mm x 17mm - Folha A4',
+    pageSize: 'A4' as const,
     cols: 6,
     rows: 16,
     labelWidth: 31,
     labelHeight: 17,
-    marginTop: 10.6,
-    marginLeft: 8.5,
-    marginRight: 8.5,
-    marginBottom: 10.6,
     spacingX: 3.3,
     spacingY: 0,
   },
   'pimaco-6080': {
     name: 'Pimaco 6080 - 10 por folha',
-    description: '2 colunas x 5 linhas - Etiqueta: 101,6mm x 50,8mm',
+    description: '2 colunas x 5 linhas - Etiqueta: 101,6mm x 50,8mm - Folha Carta',
+    pageSize: 'letter' as const,
     cols: 2,
     rows: 5,
     labelWidth: 101.6,
     labelHeight: 50.8,
-    marginTop: 12.7,
-    marginLeft: 4.7,
-    marginRight: 4.7,
-    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6181': {
     name: 'Pimaco 6181 - 20 por folha',
-    description: '4 colunas x 5 linhas - Etiqueta: 50,8mm x 25,4mm',
+    description: '4 colunas x 5 linhas - Etiqueta: 50,8mm x 25,4mm - Folha Carta',
+    pageSize: 'letter' as const,
     cols: 4,
     rows: 5,
     labelWidth: 50.8,
     labelHeight: 25.4,
-    marginTop: 21.2,
-    marginLeft: 4.7,
-    marginRight: 4.7,
-    marginBottom: 21.2,
     spacingX: 0,
     spacingY: 0,
   },
   'pimaco-6082': {
     name: 'Pimaco 6082 - 14 por folha',
-    description: '2 colunas x 7 linhas - Etiqueta: 101,6mm x 33,9mm',
+    description: '2 colunas x 7 linhas - Etiqueta: 101,6mm x 33,9mm - Folha Carta',
+    pageSize: 'letter' as const,
     cols: 2,
     rows: 7,
     labelWidth: 101.6,
     labelHeight: 33.9,
-    marginTop: 12.7,
-    marginLeft: 4.7,
-    marginRight: 4.7,
-    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6083': {
     name: 'Pimaco 6083 - 21 por folha',
-    description: '3 colunas x 7 linhas - Etiqueta: 63,5mm x 38,1mm',
+    description: '3 colunas x 7 linhas - Etiqueta: 63,5mm x 38,1mm - Folha Carta',
+    pageSize: 'letter' as const,
     cols: 3,
     rows: 7,
     labelWidth: 63.5,
     labelHeight: 38.1,
-    marginTop: 12.7,
-    marginLeft: 8,
-    marginRight: 8,
-    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6184': {
     name: 'Pimaco 6184 - 65 por folha',
-    description: '5 colunas x 13 linhas - Etiqueta: 38,1mm x 21,2mm',
+    description: '5 colunas x 13 linhas - Etiqueta: 38,1mm x 21,2mm - Folha Carta',
+    pageSize: 'letter' as const,
     cols: 5,
     rows: 13,
     labelWidth: 38.1,
     labelHeight: 21.2,
-    marginTop: 12.7,
-    marginLeft: 8,
-    marginRight: 8,
-    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
   'pimaco-6287': {
     name: 'Pimaco 6287 - 33 por folha',
-    description: '3 colunas x 11 linhas - Etiqueta: 66,7mm x 25,4mm',
+    description: '3 colunas x 11 linhas - Etiqueta: 66,7mm x 25,4mm - Folha Carta',
+    pageSize: 'letter' as const,
     cols: 3,
     rows: 11,
     labelWidth: 66.7,
     labelHeight: 25.4,
-    marginTop: 12.7,
-    marginLeft: 4.2,
-    marginRight: 4.2,
-    marginBottom: 12.7,
     spacingX: 2,
     spacingY: 0,
   },
   'custom': {
     name: 'Personalizado',
     description: 'Configure suas próprias dimensões',
+    pageSize: 'A4' as const,
     cols: 3,
     rows: 7,
     labelWidth: 63.5,
     labelHeight: 38.1,
-    marginTop: 12.7,
-    marginLeft: 8,
-    marginRight: 8,
-    marginBottom: 12.7,
     spacingX: 2.5,
     spacingY: 0,
   },
@@ -149,7 +138,27 @@ export default function EtiquetasPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey>('ca4348-a4348');
-  const [customTemplate, setCustomTemplate] = useState(labelTemplates['custom']);
+  const [customTemplate, setCustomTemplate] = useState<{
+    name: string;
+    description: string;
+    pageSize: 'A4' | 'letter';
+    cols: number;
+    rows: number;
+    labelWidth: number;
+    labelHeight: number;
+    spacingX: number;
+    spacingY: number;
+  }>({
+    name: 'Personalizado',
+    description: 'Configure suas próprias dimensões',
+    pageSize: 'A4',
+    cols: 3,
+    rows: 7,
+    labelWidth: 63.5,
+    labelHeight: 38.1,
+    spacingX: 2.5,
+    spacingY: 0,
+  });
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
   const [showPrice, setShowPrice] = useState(true);
   const [showBarcode, setShowBarcode] = useState(true);
@@ -217,6 +226,23 @@ export default function EtiquetasPage() {
       return customTemplate;
     }
     return labelTemplates[selectedTemplate];
+  };
+
+  const calculateCenteredMargins = () => {
+    const template = getTemplate();
+    const page = getPageSize(template.pageSize);
+    const totalWidth = template.cols * template.labelWidth + (template.cols - 1) * template.spacingX;
+    const totalHeight = template.rows * template.labelHeight + (template.rows - 1) * template.spacingY;
+    
+    return {
+      marginLeft: (page.width - totalWidth) / 2,
+      marginTop: (page.height - totalHeight) / 2,
+      marginRight: (page.width - totalWidth) / 2,
+      marginBottom: (page.height - totalHeight) / 2,
+      pageWidth: page.width,
+      pageHeight: page.height,
+      pageSize: template.pageSize,
+    };
   };
 
   const addProduct = (product: Product) => {
@@ -298,6 +324,7 @@ export default function EtiquetasPage() {
     }
 
     const template = getTemplate();
+    const margins = calculateCenteredMargins();
     const labels = generateLabelsArray();
     const labelsPerPage = template.cols * template.rows;
     const pages = Math.ceil(labels.length / labelsPerPage);
@@ -308,46 +335,21 @@ export default function EtiquetasPage() {
       const pageLabels = labels.slice(startIdx, startIdx + labelsPerPage);
       
       pagesHtml += `
-        <div class="page" style="
-          width: 210mm;
-          height: 297mm;
-          box-sizing: border-box;
-          display: flex;
-          justify-content: center;
-          page-break-after: ${page < pages - 1 ? 'always' : 'auto'};
-        ">
-          <div style="
-            padding-top: ${template.marginTop}mm;
-            display: grid;
-            grid-template-columns: repeat(${template.cols}, ${template.labelWidth}mm);
-            grid-template-rows: repeat(${template.rows}, ${template.labelHeight}mm);
-            gap: ${template.spacingY}mm ${template.spacingX}mm;
-            align-content: start;
-          ">
+        <div class="page">
+          <div class="label-grid">
           ${pageLabels.map((product, idx) => {
             const barcodeValue = product.barcode || product.internalCode;
             const barcodeImg = showBarcode ? generateBarcode(barcodeValue) : '';
             
             return `
-              <div class="label" style="
-                width: ${template.labelWidth}mm;
-                height: ${template.labelHeight}mm;
-                box-sizing: border-box;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                overflow: hidden;
-                padding: 1mm;
-                font-family: Arial, sans-serif;
-              ">
-                <div style="font-weight: bold; font-size: ${template.labelHeight < 30 ? '7' : '9'}pt; text-align: center; overflow: hidden; width: 100%; max-height: ${template.labelHeight < 30 ? '10' : '14'}mm; line-height: 1.1;">
+              <div class="label">
+                <div class="label-name">
                   ${product.name.length > 40 ? product.name.substring(0, 40) + '...' : product.name}
                 </div>
-                ${showCode ? `<div style="font-size: ${template.labelHeight < 30 ? '6' : '8'}pt; color: #666;">${product.internalCode}</div>` : ''}
-                ${showBarcode && barcodeImg ? `<img src="${barcodeImg}" style="max-width: ${template.labelWidth - 4}mm; max-height: ${template.labelHeight < 30 ? '8' : '12'}mm; margin: 1mm 0;" />` : ''}
-                ${showBarcode ? `<div style="font-size: ${template.labelHeight < 30 ? '6' : '7'}pt; letter-spacing: 0.5px;">${barcodeValue}</div>` : ''}
-                ${showPrice ? `<div style="font-weight: bold; font-size: ${template.labelHeight < 30 ? '8' : '11'}pt; margin-top: 1mm;">${formatCurrency(product.salePrice)}</div>` : ''}
+                ${showCode ? `<div class="label-code">${product.internalCode}</div>` : ''}
+                ${showBarcode && barcodeImg ? `<img class="label-barcode" src="${barcodeImg}" />` : ''}
+                ${showBarcode ? `<div class="label-barcode-text">${barcodeValue}</div>` : ''}
+                ${showPrice ? `<div class="label-price">${formatCurrency(product.salePrice)}</div>` : ''}
               </div>
             `;
           }).join('')}
@@ -362,27 +364,193 @@ export default function EtiquetasPage() {
         <head>
           <title>Impressão de Etiquetas</title>
           <style>
-            @media print {
-              body { margin: 0; padding: 0; }
-              .page { page-break-after: always; }
-              .page:last-child { page-break-after: auto; }
+            /* Reset e configurações base */
+            * { 
+              box-sizing: border-box; 
+              margin: 0; 
+              padding: 0; 
             }
-            body {
+            
+            html, body {
+              width: ${margins.pageWidth}mm;
               margin: 0;
               padding: 0;
               font-family: Arial, sans-serif;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
-            * { box-sizing: border-box; }
+            
+            /* Configurações de impressão */
+            @page {
+              size: ${margins.pageSize === 'letter' ? 'letter' : 'A4'} portrait;
+              margin: 0;
+            }
+            
+            @media print {
+              html, body {
+                width: ${margins.pageWidth}mm;
+                height: ${margins.pageHeight}mm;
+              }
+              
+              .page {
+                page-break-after: always;
+                page-break-inside: avoid;
+              }
+              
+              .page:last-child {
+                page-break-after: auto;
+              }
+              
+              .label {
+                page-break-inside: avoid;
+              }
+              
+              /* Remover elementos não imprimíveis */
+              .no-print {
+                display: none !important;
+              }
+            }
+            
+            @media screen {
+              body {
+                background: #f0f0f0;
+                padding: 20px;
+              }
+              
+              .page {
+                background: white;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                margin-bottom: 20px;
+              }
+            }
+            
+            .page {
+              width: ${margins.pageWidth}mm;
+              height: ${margins.pageHeight}mm;
+              position: relative;
+              overflow: hidden;
+            }
+            
+            .label-grid {
+              position: absolute;
+              top: ${margins.marginTop}mm;
+              left: ${margins.marginLeft}mm;
+              display: grid;
+              grid-template-columns: repeat(${template.cols}, ${template.labelWidth}mm);
+              gap: ${template.spacingY}mm ${template.spacingX}mm;
+            }
+            
+            .label {
+              width: ${template.labelWidth}mm;
+              height: ${template.labelHeight}mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              overflow: hidden;
+              padding: 1mm;
+              font-family: Arial, sans-serif;
+            }
+            
+            .label-name {
+              font-weight: bold;
+              font-size: ${template.labelHeight < 30 ? '7' : '9'}pt;
+              text-align: center;
+              overflow: hidden;
+              width: 100%;
+              max-height: ${template.labelHeight < 30 ? '10' : '14'}mm;
+              line-height: 1.1;
+            }
+            
+            .label-code {
+              font-size: ${template.labelHeight < 30 ? '6' : '8'}pt;
+              color: #666;
+            }
+            
+            .label-barcode {
+              max-width: ${template.labelWidth - 4}mm;
+              max-height: ${template.labelHeight < 30 ? '8' : '12'}mm;
+              margin: 1mm 0;
+            }
+            
+            .label-barcode-text {
+              font-size: ${template.labelHeight < 30 ? '6' : '7'}pt;
+              letter-spacing: 0.5px;
+            }
+            
+            .label-price {
+              font-weight: bold;
+              font-size: ${template.labelHeight < 30 ? '8' : '11'}pt;
+              margin-top: 1mm;
+            }
+            
+            /* Instruções de impressão */
+            .print-instructions {
+              position: fixed;
+              top: 10px;
+              right: 10px;
+              background: #fff3cd;
+              border: 1px solid #ffc107;
+              padding: 15px;
+              border-radius: 8px;
+              max-width: 300px;
+              font-size: 12px;
+              z-index: 1000;
+              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+            
+            .print-instructions h3 {
+              margin-bottom: 10px;
+              color: #856404;
+            }
+            
+            .print-instructions ul {
+              margin-left: 15px;
+              color: #856404;
+            }
+            
+            .print-instructions li {
+              margin-bottom: 5px;
+            }
+            
+            .print-button {
+              display: block;
+              width: 100%;
+              margin-top: 10px;
+              padding: 10px;
+              background: #28a745;
+              color: white;
+              border: none;
+              border-radius: 5px;
+              cursor: pointer;
+              font-size: 14px;
+            }
+            
+            .print-button:hover {
+              background: #218838;
+            }
           </style>
         </head>
         <body>
+          <!-- Instruções de impressão (só aparecem na tela) -->
+          <div class="print-instructions no-print">
+            <h3>📋 Configurações de Impressão</h3>
+            <ul>
+              <li><strong>Margens:</strong> Mínimas ou Nenhuma</li>
+              <li><strong>Escala:</strong> 100% (sem ajuste)</li>
+              <li><strong>Tamanho:</strong> ${margins.pageSize === 'letter' ? 'Carta (Letter)' : 'A4'}</li>
+              <li><strong>Orientação:</strong> Retrato</li>
+              <li><strong>Cores de fundo:</strong> Ativado (se houver)</li>
+            </ul>
+            <p style="margin-top: 10px; padding: 8px; background: #d4edda; border-radius: 4px; color: #155724;">
+              <strong>⚠️ Importante:</strong> Configure sua impressora para <strong>${margins.pageSize === 'letter' ? 'Carta' : 'A4'}</strong>
+            </p>
+            <button class="print-button" onclick="window.print()">
+              🖨️ Imprimir Etiquetas
+            </button>
+          </div>
+          
           ${pagesHtml}
-          <script>
-            window.onload = function() {
-              window.print();
-              window.onafterprint = function() { window.close(); };
-            };
-          </script>
         </body>
       </html>
     `);
@@ -480,51 +648,17 @@ export default function EtiquetasPage() {
                     </div>
                   </div>
 
-                  {/* Margens da Folha */}
+                  {/* Tamanho da Folha */}
                   <div>
-                    <h4 className="text-sm font-medium text-foreground mb-2">Margens da Folha (mm)</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-muted-foreground">Superior</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={customTemplate.marginTop}
-                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginTop: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-muted-foreground">Esquerda</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={customTemplate.marginLeft}
-                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginLeft: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-muted-foreground">Direita</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={customTemplate.marginRight}
-                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginRight: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-muted-foreground">Inferior</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={customTemplate.marginBottom}
-                          onChange={(e) => setCustomTemplate({ ...customTemplate, marginBottom: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
-                        />
-                      </div>
-                    </div>
+                    <h4 className="text-sm font-medium text-foreground mb-2">Tamanho da Folha</h4>
+                    <select
+                      value={customTemplate.pageSize}
+                      onChange={(e) => setCustomTemplate({ ...customTemplate, pageSize: e.target.value as 'A4' | 'letter' })}
+                      className="w-full px-2 py-1 bg-background border border-border rounded text-sm text-foreground"
+                    >
+                      <option value="A4">A4 (210mm x 297mm)</option>
+                      <option value="letter">Carta (216mm x 279mm)</option>
+                    </select>
                   </div>
 
                   {/* Espaçamento entre Etiquetas */}
@@ -559,7 +693,8 @@ export default function EtiquetasPage() {
                     <div className="font-medium text-foreground mb-1">Informações Calculadas:</div>
                     <div>{customTemplate.cols * customTemplate.rows} etiquetas por folha</div>
                     <div>Etiqueta: {customTemplate.labelWidth}mm x {customTemplate.labelHeight}mm</div>
-                    <div>Folha A4: 210mm x 297mm</div>
+                    <div>Folha: {customTemplate.pageSize === 'letter' ? 'Carta (216mm x 279mm)' : 'A4 (210mm x 297mm)'}</div>
+                    <div>Margens automáticas (centralizado)</div>
                   </div>
                 </div>
               )}
@@ -765,7 +900,7 @@ export default function EtiquetasPage() {
           </div>
 
           {/* Painel Direito - Prévia */}
-          <div className="bg-card border border-border rounded-lg shadow p-6">
+          <div className="bg-card border border-border rounded-lg shadow p-6 flex flex-col">
             <h2 className="text-lg font-semibold text-foreground mb-4">Pré-visualização</h2>
             
             {!previewMode && labelItems.length === 0 ? (
@@ -778,27 +913,27 @@ export default function EtiquetasPage() {
                 </div>
               </div>
             ) : (
-              <div ref={printRef} className="border rounded-lg overflow-hidden">
-                {/* Preview da folha A4 */}
-                <div
-                  className="bg-white relative mx-auto"
-                  style={{
-                    width: '210mm',
-                    minHeight: '297mm',
-                    transform: 'scale(0.35)',
-                    transformOrigin: 'top left',
-                    marginBottom: '-65%',
-                  }}
-                >
+              <div ref={printRef} className="flex-1 border rounded-lg overflow-hidden bg-gray-300 flex flex-col">
+                {/* Preview da folha A4 - escala para caber na tela */}
+                <div className="flex-1 flex items-start justify-center p-2 overflow-hidden">
+                  <div
+                    className="bg-white shadow-lg origin-top"
+                    style={{
+                      width: `${calculateCenteredMargins().pageWidth}mm`,
+                      height: `${calculateCenteredMargins().pageHeight}mm`,
+                      transform: 'scale(0.38)',
+                      transformOrigin: 'top center',
+                      flexShrink: 0,
+                    }}
+                  >
                   <div
                     style={{
-                      paddingTop: `${getTemplate().marginTop}mm`,
-                      paddingLeft: `${getTemplate().marginLeft}mm`,
+                      position: 'absolute',
+                      top: `${calculateCenteredMargins().marginTop}mm`,
+                      left: `${calculateCenteredMargins().marginLeft}mm`,
                       display: 'grid',
                       gridTemplateColumns: `repeat(${getTemplate().cols}, ${getTemplate().labelWidth}mm)`,
-                      gridTemplateRows: `repeat(${getTemplate().rows}, ${getTemplate().labelHeight}mm)`,
                       gap: `${getTemplate().spacingY}mm ${getTemplate().spacingX}mm`,
-                      alignContent: 'start',
                     }}
                   >
                     {generateLabelsArray()
@@ -808,7 +943,7 @@ export default function EtiquetasPage() {
                         return (
                           <div
                             key={`${product.id}-${idx}`}
-                            className="border border-gray-300 flex flex-col justify-center items-center overflow-hidden"
+                            className="border border-gray-300 flex flex-col justify-center items-center overflow-hidden bg-white"
                             style={{
                               width: `${getTemplate().labelWidth}mm`,
                               height: `${getTemplate().labelHeight}mm`,
@@ -862,11 +997,12 @@ export default function EtiquetasPage() {
                         );
                       })}
                   </div>
+                  </div>
                 </div>
 
                 {/* Info da página */}
-                <div className="bg-level-1 p-3 text-center text-sm text-muted-foreground">
-                  {getTotalLabels()} etiquetas em {Math.ceil(getTotalLabels() / (getTemplate().cols * getTemplate().rows))} página(s)
+                <div className="bg-level-1 p-2 text-center text-sm text-muted-foreground border-t border-border">
+                  {getTotalLabels()} etiquetas em {Math.ceil(getTotalLabels() / (getTemplate().cols * getTemplate().rows))} página(s) • Modelo: {getTemplate().name}
                 </div>
               </div>
             )}
