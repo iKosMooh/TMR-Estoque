@@ -40,6 +40,19 @@ export async function GET() {
           lastPurchaseDate: p.dataUltimaCompra || null,
           ncm: p.ncm,
           lowStockThreshold: p.estoqueBaixoLimite,
+          // Campos de tipo de produto e unidades
+          productType: p.productType || 'simple',
+          unitType: p.unitType || 'package',
+          packageQuantity: p.packageQuantity || 0,
+          unitsPerPackage: p.unitsPerPackage || 1,
+          unitName: p.unitName || 'unidade',
+          packageName: p.packageName || 'embalagem',
+          sellByUnit: p.sellByUnit === 1,
+          unitPrice: p.unitPrice || '0',
+          // Só calcular unidades disponíveis se sellByUnit estiver habilitado
+          qtdUnitsAvailable: p.sellByUnit === 1 
+            ? (p.qtdUnitsAvailable || (totalQuantity * (p.unitsPerPackage || 1)))
+            : 0,
           batches: batches.map(b => ({
             id: b.id,
             purchaseDate: b.purchaseDate || null, // Já vem como string YYYY-MM-DD

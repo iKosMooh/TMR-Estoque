@@ -52,6 +52,8 @@ interface SalesOrderItem {
   unitPrice: string;
   discount: string;
   total: string;
+  sellType?: 'package' | 'unit';
+  unitsSold?: number;
 }
 
 export default function GerenciarVendas() {

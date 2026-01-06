@@ -32,6 +32,16 @@ interface ProductFormData {
   metaDescription?: string;
   tags?: string;
   warrantyMonths?: number;
+  // Campos para tipo de produto e unidades
+  productType?: 'simple' | 'marketplace';
+  unitType?: 'unit' | 'package';
+  packageQuantity?: number;
+  unitsPerPackage?: number;
+  unitName?: string;
+  packageName?: string;
+  sellByUnit?: boolean;
+  unitPrice?: string;
+  markupPercentage?: string;
 }
 
 interface BatchFormData {
@@ -42,6 +52,10 @@ interface BatchFormData {
   quantityRemaining: number;
   purchaseDate: string;
   observation?: string;
+  unitsPerPackage?: number;
+  packageQuantityReceived?: number;
+  totalUnitsReceived?: number;
+  unitsRemaining?: number;
 }
 
 interface Product {
@@ -58,6 +72,16 @@ interface Product {
   lastPurchaseDate: string | null;
   ncm: string | null;
   lowStockThreshold: number;
+  // Campos para unidades
+  productType?: 'simple' | 'marketplace';
+  unitType?: 'unit' | 'package';
+  packageQuantity?: number;
+  unitsPerPackage?: number;
+  unitName?: string;
+  packageName?: string;
+  sellByUnit?: boolean;
+  unitPrice?: string;
+  qtdUnitsAvailable?: number;
   batches: Array<{
     id: string;
     purchaseDate: string;
@@ -67,6 +91,10 @@ interface Product {
     quantityRemaining: number;
     xmlReference: string | null;
     observation: string | null;
+    unitsPerPackage?: number;
+    packageQuantityReceived?: number;
+    totalUnitsReceived?: number;
+    unitsRemaining?: number;
   }>;
 }
 
@@ -78,7 +106,15 @@ interface PreviewItem {
   cfop?: string;
   cst?: string;
   salePrice: number;
+  costPrice?: number;
+  markupPercentage?: number;
   quantity: number;
+  // Campos para unidades
+  unitsPerPackage?: number;
+  packageQuantity?: number;
+  totalUnits?: number;
+  unitPrice?: number;
+  sellByUnit?: boolean;
   existing: {
     id: string;
     currentQuantity?: number;
@@ -113,16 +149,46 @@ export default function Estoque() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Estados para filtros avançados
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterQuantityMin, setFilterQuantityMin] = useState('');
+  const [filterQuantityMax, setFilterQuantityMax] = useState('');
+  const [filterPriceMin, setFilterPriceMin] = useState('');
+  const [filterPriceMax, setFilterPriceMax] = useState('');
+  const [filterStockStatus, setFilterStockStatus] = useState<'all' | 'normal' | 'low' | 'out'>('all');
+  const [filterProductType, setFilterProductType] = useState<'all' | 'simple' | 'marketplace'>('all');
+  const [filterSellByUnit, setFilterSellByUnit] = useState<'all' | 'yes' | 'no'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'quantity' | 'price' | 'date'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  
+  // Estados para paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [formType, setFormType] = useState<'simple' | 'ecommerce'>('simple');
+  const [editFormType, setEditFormType] = useState<'simple' | 'marketplace'>('simple');
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<PreviewResult | null>(null);
   const [importing, setImporting] = useState(false);
-  const [editedImportItems, setEditedImportItems] = useState<{[key: number]: {salePrice: number; quantity: number}}>({});
+  const [editedImportItems, setEditedImportItems] = useState<{[key: number]: {
+    salePrice: number; 
+    quantity: number; 
+    costPrice?: number; 
+    markupPercentage?: number;
+    unitsPerPackage?: number;
+    sellByUnit?: boolean;
+    unitPrice?: number;
+  }}>({});
+  // Estados para multiseleção
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
   const [formData, setFormData] = useState<ProductFormData>({
     internalCode: '',
     barcode: '',
@@ -145,7 +211,17 @@ export default function Estoque() {
     metaDescription: '',
     tags: '',
     warrantyMonths: 0,
-    observation: ''
+    observation: '',
+    // Campos para unidades
+    productType: 'simple',
+    unitType: 'unit',
+    packageQuantity: 1,
+    unitsPerPackage: 1,
+    unitName: 'Unidade',
+    packageName: 'Caixa',
+    sellByUnit: false,
+    unitPrice: '',
+    markupPercentage: '',
   });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -160,6 +236,10 @@ export default function Estoque() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [existingProduct, setExistingProduct] = useState<{id: string; name: string} | null>(null);
   const [markupPercentage, setMarkupPercentage] = useState<string>('');
+  // Estado para margem de lucro global na importação
+  const [globalMarkup, setGlobalMarkup] = useState<string>('');
+  // Estado para margem de lucro no modal de edição
+  const [editMarkupPercentage, setEditMarkupPercentage] = useState<string>('');
 
   // Funções para calcular preço de venda com base no custo e margem
   const calculateSalePriceFromMarkup = (costPrice: string, markup: string): string => {
@@ -176,6 +256,52 @@ export default function Estoque() {
     if (cost <= 0 || sale <= 0) return '';
     const markup = ((sale - cost) / cost) * 100;
     return markup.toFixed(2);
+  };
+
+  // Função para atualizar preço de venda baseado na margem no modal de edição
+  const updateSalePriceFromMarkup = (costPrice: string, markup: string) => {
+    const newSalePrice = calculateSalePriceFromMarkup(costPrice, markup);
+    setFormData(prev => ({ ...prev, salePrice: newSalePrice }));
+  };
+
+  // Função para atualizar margem baseada nos preços no modal de edição
+  const updateMarkupFromPrices = (costPrice: string, salePrice: string) => {
+    const newMarkup = calculateMarkupFromPrices(costPrice, salePrice);
+    setEditMarkupPercentage(newMarkup);
+    setFormData(prev => ({ ...prev, markupPercentage: newMarkup }));
+  };
+
+  // Funções para multiseleção
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(filteredProducts.map(p => p.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const goToLabelsWithSelected = () => {
+    if (selectedProducts.size === 0) {
+      toast.error('Selecione pelo menos um produto');
+      return;
+    }
+    // Salvar seleção no localStorage e navegar para etiquetas
+    const selectedIds = Array.from(selectedProducts);
+    localStorage.setItem('selectedProductsForLabels', JSON.stringify(selectedIds));
+    window.location.href = '/etiquetas?fromSelection=true';
   };
 
   const handleCostPriceChange = (value: string) => {
@@ -205,10 +331,94 @@ export default function Estoque() {
     }
   };
 
+  // Funções para gerenciar margem na importação de XML
+  const applyGlobalMarkupToImport = () => {
+    if (!importPreview || !globalMarkup) return;
+    
+    const markupValue = parseFloat(globalMarkup) || 0;
+    const newEditedItems: typeof editedImportItems = {};
+    
+    importPreview.previewItems.forEach((item, index) => {
+      const costPrice = editedImportItems[index]?.costPrice ?? item.costPrice ?? item.salePrice;
+      const salePrice = costPrice * (1 + markupValue / 100);
+      newEditedItems[index] = {
+        ...editedImportItems[index],
+        costPrice: costPrice,
+        salePrice: salePrice,
+        markupPercentage: markupValue,
+        quantity: editedImportItems[index]?.quantity ?? item.quantity,
+      };
+    });
+    
+    setEditedImportItems(newEditedItems);
+    toast.success(`Margem de ${markupValue}% aplicada a todos os itens`);
+  };
+
+  const handleImportCostPriceChange = (index: number, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    const currentItem = editedImportItems[index] || {};
+    const markup = currentItem.markupPercentage || 0;
+    const salePrice = numValue * (1 + markup / 100);
+    
+    setEditedImportItems(prev => ({
+      ...prev,
+      [index]: { 
+        ...prev[index], 
+        costPrice: numValue,
+        salePrice: salePrice,
+      }
+    }));
+  };
+
+  const handleImportMarkupChange = (index: number, value: string) => {
+    const markupValue = parseFloat(value) || 0;
+    const item = importPreview?.previewItems[index];
+    const costPrice = editedImportItems[index]?.costPrice ?? item?.costPrice ?? item?.salePrice ?? 0;
+    const salePrice = costPrice * (1 + markupValue / 100);
+    
+    setEditedImportItems(prev => ({
+      ...prev,
+      [index]: { 
+        ...prev[index], 
+        markupPercentage: markupValue,
+        salePrice: salePrice,
+      }
+    }));
+  };
+
+  // Funções para gerenciar unidades na importação
+  const handleImportUnitsPerPackageChange = (index: number, value: string) => {
+    const numValue = parseInt(value) || 1;
+    setEditedImportItems(prev => ({
+      ...prev,
+      [index]: { ...prev[index], unitsPerPackage: numValue }
+    }));
+  };
+
+  const handleImportSellByUnitChange = (index: number, value: boolean) => {
+    setEditedImportItems(prev => ({
+      ...prev,
+      [index]: { ...prev[index], sellByUnit: value }
+    }));
+  };
+
+  const handleImportUnitPriceChange = (index: number, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    setEditedImportItems(prev => ({
+      ...prev,
+      [index]: { ...prev[index], unitPrice: numValue }
+    }));
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchCategories();
   }, []);
+
+  // Atualizar seleção quando filtro muda
+  useEffect(() => {
+    setSelectAll(false);
+  }, [searchTerm]);
 
   const fetchCategories = async () => {
     try {
@@ -310,6 +520,13 @@ export default function Estoque() {
   // Funções de edição/exclusão de produtos
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
+    setEditFormType(product.productType || 'simple');
+
+    // Calcular margem de lucro atual se houver preço de custo e venda
+    const costPrice = parseFloat(product.costPrice);
+    const salePrice = parseFloat(product.salePrice);
+    const currentMarkup = costPrice > 0 ? ((salePrice - costPrice) / costPrice * 100).toFixed(1) : '';
+
     setFormData({
       internalCode: product.internalCode,
       barcode: product.barcode || '',
@@ -318,8 +535,19 @@ export default function Estoque() {
       salePrice: product.salePrice,
       costPrice: product.costPrice,
       currentQuantity: product.currentQuantity,
-      lowStockThreshold: product.lowStockThreshold
+      lowStockThreshold: product.lowStockThreshold,
+      // Campos para unidades
+      productType: product.productType || 'simple',
+      unitType: product.unitType || 'unit',
+      packageQuantity: product.packageQuantity || 1,
+      unitsPerPackage: product.unitsPerPackage || 1,
+      unitName: product.unitName || 'Unidade',
+      packageName: product.packageName || 'Caixa',
+      sellByUnit: product.sellByUnit || false,
+      unitPrice: product.unitPrice || '',
+      markupPercentage: currentMarkup,
     });
+    setEditMarkupPercentage(currentMarkup);
     setShowEditProductModal(true);
   };
 
@@ -405,9 +633,18 @@ export default function Estoque() {
       costPrice: '',
       currentQuantity: 0,
       lowStockThreshold: 5,
-      observation: ''
+      observation: '',
+      productType: 'simple',
+      unitType: 'unit',
+      packageQuantity: 1,
+      unitsPerPackage: 1,
+      unitName: 'Unidade',
+      packageName: 'Caixa',
+      sellByUnit: false,
+      unitPrice: '',
     });
     setMarkupPercentage('');
+    setEditFormType('simple');
   };
 
   const cancelEdit = () => {
@@ -570,7 +807,13 @@ export default function Estoque() {
         previewItems: importPreview.previewItems.map((item, index) => ({
           ...item,
           salePrice: getEditedImportPrice(index, item.salePrice),
+          costPrice: editedImportItems[index]?.costPrice ?? item.costPrice ?? item.salePrice,
           quantity: getEditedImportQuantity(index, item.quantity),
+          markupPercentage: editedImportItems[index]?.markupPercentage ?? 0,
+          // Campos de unidades
+          unitsPerPackage: editedImportItems[index]?.unitsPerPackage ?? 1,
+          sellByUnit: editedImportItems[index]?.sellByUnit ?? false,
+          unitPrice: editedImportItems[index]?.unitPrice ?? 0,
         }))
       };
 
@@ -590,6 +833,7 @@ export default function Estoque() {
         setImportPreview(null);
         setImportFile(null);
         setEditedImportItems({});
+        setGlobalMarkup('');
         fetchProducts();
       } else {
         toast.error(data.message);
@@ -606,6 +850,7 @@ export default function Estoque() {
     setImportFile(null);
     setImportPreview(null);
     setEditedImportItems({});
+    setGlobalMarkup('');
   };
 
   const handleImportPriceChange = (index: number, value: string) => {
@@ -636,11 +881,132 @@ export default function Estoque() {
     return editedImportItems[index]?.quantity ?? originalQuantity;
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.internalCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Função de filtragem avançada
+  const filteredProducts = products.filter(product => {
+    // Filtro de busca por texto
+    const matchesSearch = 
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.internalCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    if (!matchesSearch) return false;
+    
+    // Filtro por data de última compra
+    if (filterDateFrom && product.lastPurchaseDate) {
+      if (product.lastPurchaseDate < filterDateFrom) return false;
+    }
+    if (filterDateTo && product.lastPurchaseDate) {
+      if (product.lastPurchaseDate > filterDateTo) return false;
+    }
+    
+    // Filtro por quantidade
+    if (filterQuantityMin) {
+      const min = parseInt(filterQuantityMin);
+      if (!isNaN(min) && product.currentQuantity < min) return false;
+    }
+    if (filterQuantityMax) {
+      const max = parseInt(filterQuantityMax);
+      if (!isNaN(max) && product.currentQuantity > max) return false;
+    }
+    
+    // Filtro por preço de venda
+    if (filterPriceMin) {
+      const min = parseFloat(filterPriceMin);
+      if (!isNaN(min) && parseFloat(product.salePrice) < min) return false;
+    }
+    if (filterPriceMax) {
+      const max = parseFloat(filterPriceMax);
+      if (!isNaN(max) && parseFloat(product.salePrice) > max) return false;
+    }
+    
+    // Filtro por status de estoque
+    if (filterStockStatus !== 'all') {
+      const status = getStockStatus(product.currentQuantity, product.lowStockThreshold);
+      if (filterStockStatus === 'normal' && status.text !== 'Normal') return false;
+      if (filterStockStatus === 'low' && status.text !== 'Baixo') return false;
+      if (filterStockStatus === 'out' && status.text !== 'Esgotado') return false;
+    }
+    
+    // Filtro por tipo de produto
+    if (filterProductType !== 'all') {
+      const productType = product.productType || 'simple';
+      if (productType !== filterProductType) return false;
+    }
+    
+    // Filtro por venda por unidade
+    if (filterSellByUnit !== 'all') {
+      const sellByUnit = product.sellByUnit || false;
+      if (filterSellByUnit === 'yes' && !sellByUnit) return false;
+      if (filterSellByUnit === 'no' && sellByUnit) return false;
+    }
+    
+    return true;
+  });
+
+  // Ordenação
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortBy) {
+      case 'name':
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case 'quantity':
+        comparison = a.currentQuantity - b.currentQuantity;
+        break;
+      case 'price':
+        comparison = parseFloat(a.salePrice) - parseFloat(b.salePrice);
+        break;
+      case 'date':
+        const dateA = a.lastPurchaseDate || '';
+        const dateB = b.lastPurchaseDate || '';
+        comparison = dateA.localeCompare(dateB);
+        break;
+    }
+    
+    return sortOrder === 'asc' ? comparison : -comparison;
+  });
+
+  // Paginação
+  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedProducts = sortedProducts.slice(startIndex, endIndex);
+
+  // Resetar página quando filtros mudam
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterDateFrom, filterDateTo, filterQuantityMin, filterQuantityMax, filterPriceMin, filterPriceMax, filterStockStatus, filterProductType, filterSellByUnit, sortBy, sortOrder, itemsPerPage]);
+
+  // Função para gerar páginas a mostrar na paginação
+  const getVisiblePages = () => {
+    const pages = [];
+    const delta = 2; // Quantas páginas mostrar ao redor da atual
+
+    for (let i = Math.max(1, currentPage - delta); i <= Math.min(totalPages, currentPage + delta); i++) {
+      pages.push(i);
+    }
+
+    return pages;
+  };
+
+  const visiblePages = getVisiblePages();
+
+  // Limpar todos os filtros
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setFilterQuantityMin('');
+    setFilterQuantityMax('');
+    setFilterPriceMin('');
+    setFilterPriceMax('');
+    setFilterStockStatus('all');
+    setFilterProductType('all');
+    setFilterSellByUnit('all');
+    setSortBy('name');
+    setSortOrder('asc');
+  };
 
   const getStockStatus = (quantity: number, threshold: number): { text: string; variant: 'success' | 'warning' | 'danger'; color: string } => {
     if (quantity === 0) return { text: 'Esgotado', variant: 'danger', color: '#dc2626' }; // vermelho
@@ -673,17 +1039,283 @@ export default function Estoque() {
               >
                 ➕ Adicionar Produto
               </button>
+              {selectedProducts.size > 0 && (
+                <button
+                  onClick={goToLabelsWithSelected}
+                  className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+                  aria-label="Gerar etiquetas dos produtos selecionados"
+                >
+                  🏷️ Gerar Etiquetas ({selectedProducts.size})
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Barra de Pesquisa */}
-          <div className="mb-6">
-            <SearchBar
-              value={searchTerm}
-              onChange={setSearchTerm}
-              placeholder="Buscar por nome, código interno ou código de barras..."
-            />
+          {/* Barra de Pesquisa e Seleção */}
+          <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex-1">
+              <SearchBar
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Buscar por nome, código interno ou código de barras..."
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${showFilters ? 'bg-primary text-white border-primary' : 'bg-level-2 border-border hover:bg-level-3'}`}
+              >
+                🔍 Filtros {showFilters ? '▲' : '▼'}
+              </button>
+              <label className="flex items-center gap-2 cursor-pointer bg-level-2 px-4 py-2 rounded-lg border border-border hover:bg-level-3 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-border"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Selecionar todos ({sortedProducts.length})
+                </span>
+              </label>
+            </div>
           </div>
+
+          {/* Painel de Filtros Avançados */}
+          {showFilters && (
+            <div className="mb-6 p-6 bg-level-2 rounded-lg border border-border">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-foreground">Filtros Avançados</h3>
+                <button
+                  onClick={clearAllFilters}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Limpar Filtros
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {/* Filtro por Data */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground block">Data Última Compra</label>
+                  <div className="space-y-2">
+                    <input
+                      type="date"
+                      value={filterDateFrom}
+                      onChange={(e) => setFilterDateFrom(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                      placeholder="De"
+                    />
+                    <input
+                      type="date"
+                      value={filterDateTo}
+                      onChange={(e) => setFilterDateTo(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                      placeholder="Até"
+                    />
+                  </div>
+                </div>
+
+                {/* Filtro por Quantidade */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground block">Quantidade em Estoque</label>
+                  <div className="space-y-2">
+                    <input
+                      type="number"
+                      value={filterQuantityMin}
+                      onChange={(e) => setFilterQuantityMin(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                      placeholder="Mínimo"
+                      min="0"
+                    />
+                    <input
+                      type="number"
+                      value={filterQuantityMax}
+                      onChange={(e) => setFilterQuantityMax(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                      placeholder="Máximo"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                {/* Filtro por Preço */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground block">Preço de Venda (R$)</label>
+                  <div className="space-y-2">
+                    <input
+                      type="number"
+                      value={filterPriceMin}
+                      onChange={(e) => setFilterPriceMin(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                      placeholder="Mínimo"
+                      min="0"
+                      step="0.01"
+                    />
+                    <input
+                      type="number"
+                      value={filterPriceMax}
+                      onChange={(e) => setFilterPriceMax(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                      placeholder="Máximo"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                {/* Filtro por Status de Estoque */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground block">Status do Estoque</label>
+                  <select
+                    value={filterStockStatus}
+                    onChange={(e) => setFilterStockStatus(e.target.value as 'all' | 'normal' | 'low' | 'out')}
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="normal">✅ Normal</option>
+                    <option value="low">⚠️ Baixo</option>
+                    <option value="out">❌ Esgotado</option>
+                  </select>
+                </div>
+
+                {/* Filtro por Tipo de Produto */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground block">Tipo de Produto</label>
+                  <select
+                    value={filterProductType}
+                    onChange={(e) => setFilterProductType(e.target.value as 'all' | 'simple' | 'marketplace')}
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="simple">Simples</option>
+                    <option value="marketplace">Marketplace</option>
+                  </select>
+                </div>
+
+                {/* Filtro por Venda por Unidade */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground block">Venda por Unidade</label>
+                  <select
+                    value={filterSellByUnit}
+                    onChange={(e) => setFilterSellByUnit(e.target.value as 'all' | 'yes' | 'no')}
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="yes">Sim</option>
+                    <option value="no">Não</option>
+                  </select>
+                </div>
+
+                {/* Itens por Página */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-muted-foreground block">Itens por Página</label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                  >
+                    <option value={10}>10 itens</option>
+                    <option value={25}>25 itens</option>
+                    <option value={50}>50 itens</option>
+                    <option value={100}>100 itens</option>
+                    <option value={250}>250 itens</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Resumo dos filtros ativos */}
+              <div className="mt-6 pt-4 border-t border-border">
+                <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                  <span>Exibindo {paginatedProducts.length} de {sortedProducts.length} produtos</span>
+                  {sortedProducts.length !== products.length && (
+                    <span className="text-primary">({products.length} total no sistema)</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Controles de Paginação - Topo */}
+          {!loading && sortedProducts.length > 0 && (
+            <div className="mb-4 flex flex-col sm:flex-row justify-between items-center gap-4 p-3 bg-level-2 rounded-lg border border-border">
+              <div className="text-sm text-muted-foreground">
+                Página {currentPage} de {totalPages} • {sortedProducts.length} produtos
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Ordenar por</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as 'name' | 'quantity' | 'price' | 'date')}
+                    className="px-3 py-1 text-sm bg-background border border-border rounded"
+                  >
+                    <option value="name">Nome</option>
+                    <option value="quantity">Quantidade</option>
+                    <option value="price">Preço</option>
+                    <option value="date">Data</option>
+                  </select>
+                  <button
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="px-2 py-1 bg-background border border-border rounded hover:bg-level-3 transition-colors"
+                    title={sortOrder === 'asc' ? 'Ordem Crescente' : 'Ordem Decrescente'}
+                  >
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </button>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="px-2 py-1 text-sm bg-background border border-border rounded hover:bg-level-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Primeira página"
+                  >
+                    ⏮
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-2 py-1 text-sm bg-background border border-border rounded hover:bg-level-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Página anterior"
+                  >
+                    ◀
+                  </button>
+
+                  {/* Páginas visíveis */}
+                  {visiblePages.map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1 text-sm border rounded ${
+                        page === currentPage
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-background border-border hover:bg-level-3'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-2 py-1 text-sm bg-background border border-border rounded hover:bg-level-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Próxima página"
+                  >
+                    ▶
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="px-2 py-1 text-sm bg-background border border-border rounded hover:bg-level-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Última página"
+                  >
+                    ⏭
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Lista de Produtos */}
           {loading ? (
@@ -691,11 +1323,11 @@ export default function Estoque() {
           ) : (
             <div className="bg-level-1 shadow-lg overflow-hidden sm:rounded-lg">
               <ul className="divide-y divide-border" role="list">
-                {filteredProducts.length === 0 ? (
+                {sortedProducts.length === 0 ? (
                   <li className="px-6 py-12 text-center">
                     <EmptyState
                       title="Nenhum produto encontrado"
-                      description={searchTerm ? 'Tente ajustar os termos de busca ou adicione novos produtos.' : 'Comece adicionando seu primeiro produto ao estoque.'}
+                      description={searchTerm ? 'Tente ajustar os filtros de busca ou adicione novos produtos.' : 'Comece adicionando seu primeiro produto ao estoque.'}
                       action={
                         !searchTerm && (
                           <Button onClick={() => setShowAddProductModal(true)} variant="primary">
@@ -706,18 +1338,38 @@ export default function Estoque() {
                     />
                   </li>
                 ) : (
-                  filteredProducts.map((product) => {
+                  paginatedProducts.map((product) => {
                     const stockStatus = getStockStatus(product.currentQuantity, product.lowStockThreshold);
                     const isExpanded = expandedProduct === product.id;
+                    const isSelected = selectedProducts.has(product.id);
                     return (
-                      <li key={product.id} className="px-3 py-3 bg-level-2 hover:bg-level-3 hover:scale-[1.02] transition-all duration-200 rounded-lg cursor-pointer" onClick={() => toggleProductDetails(product.id)}>
+                      <li key={product.id} className={`px-3 py-3 bg-level-2 hover:bg-level-3 hover:scale-[1.02] transition-all duration-200 rounded-lg cursor-pointer ${isSelected ? 'ring-2 ring-primary' : ''}`}>
                         <div className="bg-card rounded-md p-4">
                           <div className="flex items-center justify-between">
-                            <div className="flex-1">
+                            {/* Checkbox de seleção */}
+                            <div className="mr-4" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleProductSelection(product.id)}
+                                className="w-5 h-5 rounded border-border cursor-pointer"
+                              />
+                            </div>
+                            <div className="flex-1" onClick={() => toggleProductDetails(product.id)}>
                               <div className="flex items-center">
                                 <div className="flex-1">
-                                  <h3 className="text-lg font-semibold text-foreground cursor-pointer hover:text-primary transition-colors" onClick={() => toggleProductDetails(product.id)}>
+                                  <h3 className="text-lg font-semibold text-foreground cursor-pointer hover:text-primary transition-colors">
                                     {product.name} {isExpanded ? '▼' : '▶'}
+                                    {product.sellByUnit && (
+                                      <span className="ml-2 text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-0.5 rounded-full">
+                                        Vende por unidade
+                                      </span>
+                                    )}
+                                    {product.productType === 'marketplace' && (
+                                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded-full">
+                                        Marketplace
+                                      </span>
+                                    )}
                                   </h3>
                                   <p className="text-sm text-muted-foreground mt-1">
                                     Código: {product.internalCode}
@@ -725,6 +1377,11 @@ export default function Estoque() {
                                   </p>
                                   {product.description && (
                                     <p className="text-sm text-muted-foreground mt-2">{product.description}</p>
+                                  )}
+                                  {product.sellByUnit && product.unitsPerPackage && product.unitsPerPackage > 1 && (
+                                    <p className="text-sm text-purple-600 dark:text-purple-400 mt-1">
+                                      📦 {product.packageQuantity || 1} {product.packageName || 'Caixa'}(s) × {product.unitsPerPackage} {product.unitName || 'Unidade'}(s) = {(product.packageQuantity || 1) * product.unitsPerPackage} unidades disponíveis
+                                    </p>
                                   )}
                                 </div>
                                 <div className="ml-4 flex flex-col items-end space-y-1">
@@ -737,9 +1394,16 @@ export default function Estoque() {
                                   <span className="text-sm font-semibold text-foreground">
                                     Qtd: {product.currentQuantity}
                                   </span>
+                                  {product.sellByUnit && product.unitPrice && (
+                                    <span className="text-xs text-purple-600 dark:text-purple-400">
+                                      Un: R$ {parseFloat(product.unitPrice).toFixed(2)}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
-                            {isExpanded && product.batches.length > 0 && (
+                            </div>
+                          </div>
+                          {isExpanded && product.batches.length > 0 && (
                               <div className="mt-4 bg-level-3 p-4 rounded-lg">
                                 <h4 className="text-sm font-semibold text-foreground mb-3">Lotes:</h4>
                                 <div className="space-y-2">
@@ -809,14 +1473,76 @@ export default function Estoque() {
                                 </div>
                               )}
                             </div>
-                            </div>
                           </div>
-                        </div>
                       </li>
                     );
                   })
                 )}
               </ul>
+
+              {/* Controles de Paginação Inferior */}
+              {sortedProducts.length > 0 && (
+                <div className="bg-muted px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-b-lg border-t border-border">
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando <span className="font-medium text-foreground">{startIndex + 1}</span> a{' '}
+                    <span className="font-medium text-foreground">{Math.min(endIndex, sortedProducts.length)}</span> de{' '}
+                    <span className="font-medium text-foreground">{sortedProducts.length}</span> produtos
+                    {sortedProducts.length !== products.length && (
+                      <span className="text-muted-foreground"> (filtrado de {products.length} total)</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-2 py-1 text-sm border border-border rounded bg-card hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Primeira página"
+                    >
+                      ⏮
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="px-2 py-1 text-sm border border-border rounded bg-card hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Página anterior"
+                    >
+                      ◀
+                    </button>
+
+                    {/* Páginas visíveis */}
+                    {visiblePages.map(page => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1 text-sm border rounded ${
+                          page === currentPage
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-card border-border hover:bg-accent'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-2 py-1 text-sm border border-border rounded bg-card hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Próxima página"
+                    >
+                      ▶
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="px-2 py-1 text-sm border border-border rounded bg-card hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Última página"
+                    >
+                      ⏭
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -960,68 +1686,154 @@ export default function Estoque() {
                     <p className="text-card-foreground"><strong className="text-card-foreground">Total de itens:</strong> {importPreview.totalItems}</p>
                   </div>
 
-                  <div className="bg-card border border-border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                  {/* Margem Global */}
+                  <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-4 rounded-lg">
+                    <h5 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3">📊 Aplicar Margem de Lucro Global</h5>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <label className="block text-xs text-purple-600 dark:text-purple-400 mb-1">Margem (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={globalMarkup}
+                          onChange={(e) => setGlobalMarkup(e.target.value)}
+                          className="w-full px-3 py-2 border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-purple-900/30 text-card-foreground focus:ring-2 focus:ring-purple-500"
+                          placeholder="Ex: 30 para 30%"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={applyGlobalMarkupToImport}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-500 transition-colors mt-5"
+                      >
+                        Aplicar a Todos
+                      </button>
+                    </div>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                      💡 O preço de custo será o valor do XML e o preço de venda será calculado com a margem
+                    </p>
+                  </div>
+
+                  <div className="bg-card border border-border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
                     <table className="w-full">
-                      <thead className="bg-muted sticky top-0">
+                      <thead className="bg-muted sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Código</th>
-                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Nome</th>
-                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Preço</th>
-                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Quantidade</th>
-                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Ação</th>
-                          <th className="px-4 py-2 text-left text-card-foreground font-medium">Status</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Código</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Nome</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Custo (R$)</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Margem (%)</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Venda (R$)</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Qtd</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Un/Cx</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Vende Un?</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {importPreview.previewItems.map((item, index) => (
-                          <tr key={index} className="border-t border-border">
-                            <td className="px-4 py-2 text-card-foreground">{item.internalCode || item.barcode}</td>
-                            <td className="px-4 py-2 text-card-foreground">{item.name}</td>
-                            <td className="px-4 py-2">
-                              <div className="flex items-center">
-                                <span className="mr-2 text-card-foreground">R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={getEditedImportPrice(index, item.salePrice).toFixed(2)}
-                                  onChange={(e) => handleImportPriceChange(index, e.target.value)}
-                                  className="w-28 px-2 py-1 border border-input rounded text-sm text-card-foreground bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-                                  placeholder="0.00"
-                                />
-                              </div>
+                        {importPreview.previewItems.map((item, index) => {
+                          const costPrice = editedImportItems[index]?.costPrice ?? item.costPrice ?? item.salePrice;
+                          const salePrice = getEditedImportPrice(index, item.salePrice);
+                          const markup = editedImportItems[index]?.markupPercentage ?? (costPrice > 0 ? ((salePrice - costPrice) / costPrice * 100) : 0);
+                          const unitsPerPackage = editedImportItems[index]?.unitsPerPackage ?? 1;
+                          const sellByUnit = editedImportItems[index]?.sellByUnit ?? false;
+                          
+                          return (
+                          <tr key={index} className="border-t border-border hover:bg-muted/50">
+                            <td className="px-2 py-2 text-card-foreground text-xs">{item.internalCode || item.barcode}</td>
+                            <td className="px-2 py-2 text-card-foreground text-xs max-w-[120px] truncate" title={item.name}>{item.name}</td>
+                            {/* Preço de Custo */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={costPrice.toFixed(2)}
+                                onChange={(e) => handleImportCostPriceChange(index, e.target.value)}
+                                className="w-20 px-1 py-1 border border-input rounded text-xs text-card-foreground bg-background focus:ring-1 focus:ring-ring"
+                                placeholder="0.00"
+                              />
                             </td>
-                            <td className="px-4 py-2">
+                            {/* Margem */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={markup.toFixed(1)}
+                                onChange={(e) => handleImportMarkupChange(index, e.target.value)}
+                                className="w-16 px-1 py-1 border border-purple-300 dark:border-purple-700 rounded text-xs text-card-foreground bg-purple-50 dark:bg-purple-900/30 focus:ring-1 focus:ring-purple-500"
+                                placeholder="0"
+                              />
+                            </td>
+                            {/* Preço de Venda */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={salePrice.toFixed(2)}
+                                onChange={(e) => handleImportPriceChange(index, e.target.value)}
+                                className="w-20 px-1 py-1 border border-green-300 dark:border-green-700 rounded text-xs text-card-foreground bg-green-50 dark:bg-green-900/30 focus:ring-1 focus:ring-green-500"
+                                placeholder="0.00"
+                              />
+                            </td>
+                            {/* Quantidade */}
+                            <td className="px-2 py-2">
                               <input
                                 type="number"
                                 min="0"
                                 step="1"
                                 value={getEditedImportQuantity(index, item.quantity)}
                                 onChange={(e) => handleImportQuantityChange(index, e.target.value)}
-                                className="w-24 px-2 py-1 border border-input rounded text-sm text-card-foreground bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+                                className="w-14 px-1 py-1 border border-input rounded text-xs text-card-foreground bg-background focus:ring-1 focus:ring-ring"
                                 placeholder="0"
                               />
                             </td>
-                            <td className="px-4 py-2">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                item.action === 'create' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                              }`}>
-                                {item.action === 'create' ? 'Criar' : 'Atualizar'}
-                              </span>
+                            {/* Unidades por Caixa */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={unitsPerPackage}
+                                onChange={(e) => handleImportUnitsPerPackageChange(index, e.target.value)}
+                                className="w-12 px-1 py-1 border border-input rounded text-xs text-card-foreground bg-background focus:ring-1 focus:ring-ring"
+                                placeholder="1"
+                              />
                             </td>
-                            <td className="px-4 py-2">
+                            {/* Vende por Unidade */}
+                            <td className="px-2 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={sellByUnit}
+                                onChange={(e) => handleImportSellByUnitChange(index, e.target.checked)}
+                                className="w-4 h-4 rounded border-border cursor-pointer"
+                              />
+                            </td>
+                            {/* Status */}
+                            <td className="px-2 py-2">
                               {item.existing ? (
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Produto existente (estoque atual: {item.existing.currentQuantity || 0})
+                                <span className="text-orange-700 dark:text-orange-300 text-xs font-medium">
+                                  Existe ({item.existing.currentQuantity || 0})
                                 </span>
                               ) : (
-                                <span className="text-green-700 dark:text-green-300 text-sm font-medium">Novo produto</span>
+                                <span className="text-green-700 dark:text-green-300 text-xs font-medium">Novo</span>
                               )}
                             </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Legenda */}
+                  <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground">
+                    <p className="font-medium mb-1">📝 Legenda:</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <span><strong>Custo:</strong> Preço de compra (NF-e)</span>
+                      <span><strong>Margem:</strong> % de lucro sobre o custo</span>
+                      <span><strong>Venda:</strong> Preço final de venda</span>
+                      <span><strong>Un/Cx:</strong> Unidades por caixa/embalagem</span>
+                    </div>
                   </div>
 
                   <div className="flex justify-end space-x-3">
@@ -1638,7 +2450,7 @@ export default function Estoque() {
       {/* Modal de Edição de Produto */}
       {showEditProductModal && editingProduct && (
         <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
-          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-2xl shadow-lg rounded-lg bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]">
+          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-3xl shadow-lg rounded-lg bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-foreground">Editar Produto</h3>
@@ -1648,6 +2460,45 @@ export default function Estoque() {
                 >
                   <span className="text-2xl">&times;</span>
                 </button>
+              </div>
+
+              {/* Seletor de Tipo de Produto */}
+              <div className="mb-6 p-4 bg-accent/50 rounded-lg border border-border">
+                <label className="block text-sm font-medium text-foreground mb-3">Tipo de Produto</label>
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditFormType('simple');
+                      setFormData({ ...formData, productType: 'simple' });
+                    }}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                      editFormType === 'simple'
+                        ? 'border-primary bg-primary/10 text-primary font-semibold'
+                        : 'border-border bg-background text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="text-lg mb-1">📦</div>
+                    <div className="font-medium">Simples</div>
+                    <div className="text-xs mt-1">Venda local/balcão</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditFormType('marketplace');
+                      setFormData({ ...formData, productType: 'marketplace' });
+                    }}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                      editFormType === 'marketplace'
+                        ? 'border-primary bg-primary/10 text-primary font-semibold'
+                        : 'border-border bg-background text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="text-lg mb-1">🛒</div>
+                    <div className="font-medium">Marketplace</div>
+                    <div className="text-xs mt-1">Vendas online</div>
+                  </button>
+                </div>
               </div>
 
               <form onSubmit={handleUpdateProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1680,27 +2531,63 @@ export default function Estoque() {
                     className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground">Preço de Venda</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.salePrice}
-                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
-                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground">Preço de Custo</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.costPrice}
-                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
-                    required
-                  />
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-foreground mb-3">💰 Preços e Margem de Lucro</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div>
+                      <label className="block text-sm font-medium text-black-700 dark:text-black-300 mb-1">Preço de Custo (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.costPrice}
+                        onChange={(e) => {
+                          const newCostPrice = e.target.value;
+                          setFormData({ ...formData, costPrice: newCostPrice });
+                          if (editMarkupPercentage) {
+                            updateSalePriceFromMarkup(newCostPrice, editMarkupPercentage);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-background border border-blue-300 dark:border-blue-700 rounded text-foreground focus:ring-2 focus:ring-blue-500"
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-black-700 dark:text-black-300 mb-1">Margem de Lucro (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={editMarkupPercentage}
+                        onChange={(e) => {
+                          const newMarkup = e.target.value;
+                          setEditMarkupPercentage(newMarkup);
+                          setFormData({ ...formData, markupPercentage: newMarkup });
+                          updateSalePriceFromMarkup(formData.costPrice, newMarkup);
+                        }}
+                        className="w-full px-3 py-2 bg-background border border-blue-300 dark:border-blue-700 rounded text-foreground focus:ring-2 focus:ring-blue-500"
+                        placeholder="30.0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-black-700 dark:text-black-300 mb-1">Preço de Venda (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.salePrice}
+                        onChange={(e) => {
+                          const newSalePrice = e.target.value;
+                          setFormData({ ...formData, salePrice: newSalePrice });
+                          updateMarkupFromPrices(formData.costPrice, newSalePrice);
+                        }}
+                        className="w-full px-3 py-2 bg-background border border-purple-300 dark:border-purple-700 rounded text-foreground focus:ring-2 focus:ring-purple-500"
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-black-600 dark:text-black-400">
+                    💡 Altere o preço de custo ou margem para recalcular automaticamente o preço de venda
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground">Quantidade Atual</label>
@@ -1732,6 +2619,82 @@ export default function Estoque() {
                     rows={3}
                   />
                 </div>
+
+                {/* Seção de Unidades/Embalagens */}
+                <div className="md:col-span-2 mt-4 pt-4 border-t border-border">
+                  <h4 className="text-md font-semibold text-foreground mb-4">📦 Configuração de Unidades</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Configure como o produto é vendido. Ex: Uma caixa com 10 lâmpadas pode ser vendida como caixa inteira ou por unidade.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Nome da Embalagem</label>
+                  <input
+                    type="text"
+                    value={formData.packageName || 'Caixa'}
+                    onChange={(e) => setFormData({ ...formData, packageName: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    placeholder="Ex: Caixa, Pacote, Fardo"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Nome da Unidade</label>
+                  <input
+                    type="text"
+                    value={formData.unitName || 'Unidade'}
+                    onChange={(e) => setFormData({ ...formData, unitName: e.target.value })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    placeholder="Ex: Unidade, Peça, Item"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Unidades por Embalagem</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.unitsPerPackage || 1}
+                    onChange={(e) => setFormData({ ...formData, unitsPerPackage: parseInt(e.target.value) || 1 })}
+                    className="mt-1 block w-full bg-background border border-input rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                    placeholder="1"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">Quantas unidades vêm em cada embalagem</p>
+                </div>
+
+                <div className="flex flex-col justify-center">
+                  <label className="flex items-center gap-3 cursor-pointer p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <input
+                      type="checkbox"
+                      checked={formData.sellByUnit || false}
+                      onChange={(e) => setFormData({ ...formData, sellByUnit: e.target.checked })}
+                      className="w-5 h-5 rounded border-blue-300 text-gray-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <span className="font-medium text-blue-700 dark:text-black-300">Vender por Unidade</span>
+                      <p className="text-xs text-blue-600 dark:text-black-400">Permite vender itens individuais da embalagem</p>
+                    </div>
+                  </label>
+                </div>
+
+                {formData.sellByUnit && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-foreground">Preço por Unidade (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.unitPrice || ''}
+                      onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+                      className="mt-1 block w-full bg-background border border-blue-300 dark:border-blue-700 rounded-md shadow-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                      placeholder="0.00"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      💡 Preço mínimo sugerido: R$ {formData.salePrice && formData.unitsPerPackage ? (parseFloat(formData.salePrice) / (formData.unitsPerPackage || 1)).toFixed(2) : '0.00'} por unidade
+                    </p>
+                  </div>
+                )}
+
                 <div className="md:col-span-2 flex justify-end space-x-3">
                   <button
                     type="button"

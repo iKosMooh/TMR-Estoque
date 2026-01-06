@@ -245,6 +245,11 @@ export const productBatches = mysqlTable("product_batches", {
 	quantityRemaining: int("quantity_remaining").notNull(),
 	xmlReference: varchar("xml_reference", { length: 100 }),
 	observation: text(),
+	// Campos de unidades
+	unitsPerPackage: int("units_per_package").default(1),
+	packageQuantityReceived: int("package_quantity_received").default(0),
+	totalUnitsReceived: int("total_units_received").default(0),
+	unitsRemaining: int("units_remaining").default(0),
 },
 (table) => [
 	primaryKey({ columns: [table.id], name: "product_batches_id"}),
@@ -320,6 +325,16 @@ export const products = mysqlTable("products", {
 	metaDescription: text("meta_description"),
 	tags: text(),
 	warrantyMonths: int("warranty_months"),
+	// Campos de tipo de produto e venda por unidade
+	productType: mysqlEnum("product_type", ['simple', 'marketplace']).default('simple'),
+	unitType: mysqlEnum("unit_type", ['package', 'unit']).default('package'),
+	packageQuantity: int("package_quantity").default(0),
+	unitsPerPackage: int("units_per_package").default(1),
+	unitName: varchar("unit_name", { length: 50 }),
+	packageName: varchar("package_name", { length: 50 }),
+	sellByUnit: tinyint("sell_by_unit").default(0),
+	unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+	qtdUnitsAvailable: int("qtd_units_available").default(0),
 },
 (table) => [
 	primaryKey({ columns: [table.id], name: "products_id"}),
@@ -365,6 +380,8 @@ export const salesOrderItems = mysqlTable("sales_order_items", {
 	unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
 	discount: decimal({ precision: 10, scale: 2 }).default('0.00'),
 	total: decimal({ precision: 10, scale: 2 }).notNull(),
+	sellType: mysqlEnum("sell_type", ['package', 'unit']).default('package'),
+	unitsSold: int("units_sold").default(0),
 	createdAt: datetime("created_at", { mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`),
 },
 (table) => [

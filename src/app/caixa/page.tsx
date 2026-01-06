@@ -13,6 +13,13 @@ interface Product {
   name: string;
   salePrice: string;
   currentQuantity: number;
+  // Campos para venda por unidade
+  sellByUnit?: boolean;
+  unitsPerPackage?: number;
+  unitPrice?: string;
+  unitName?: string;
+  packageName?: string;
+  qtdUnitsAvailable?: number;
 }
 
 interface Customer {
@@ -31,6 +38,9 @@ interface CartItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  // Campos para venda por unidade
+  sellType?: 'package' | 'unit';
+  unitsSold?: number;
 }
 
 interface PosSession {
@@ -250,18 +260,107 @@ export default function PDV() {
     (customer.cpfCnpj && customer.cpfCnpj.includes(customerSearch))
   );
 
+  // Estado para modal de escolha de tipo de venda (embalagem ou unidade)
+  const [showUnitChoiceModal, setShowUnitChoiceModal] = useState(false);
+  const [productForUnitChoice, setProductForUnitChoice] = useState<Product | null>(null);
+  const [unitQuantityInput, setUnitQuantityInput] = useState('1');
+
   // Adicionar ao carrinho
-  const addToCart = (product: Product) => {
-    const existingItem = cart.find(item => item.type === 'product' && item.product?.id === product.id);
+  const addToCart = (product: Product, sellType: 'package' | 'unit' = 'package', unitsQty?: number) => {
+    // Se o produto permite venda por unidade e não especificou tipo, mostrar modal
+    if (product.sellByUnit && product.unitsPerPackage && product.unitsPerPackage > 1 && sellType === 'package' && !showUnitChoiceModal) {
+      setProductForUnitChoice(product);
+      setUnitQuantityInput('1');
+      setShowUnitChoiceModal(true);
+      return;
+    }
+
+    const isUnitSale = sellType === 'unit';
+    const unitPrice = isUnitSale && product.unitPrice 
+      ? parseFloat(product.unitPrice) 
+      : parseFloat(product.salePrice);
+    
+    const quantity = isUnitSale && unitsQty ? unitsQty : 1;
+    
+    // Verificar estoque
+    const existingItem = cart.find(item => 
+      item.type === 'product' && 
+      item.product?.id === product.id && 
+      item.sellType === sellType
+    );
     
     if (existingItem) {
-      const currentQty = existingItem.quantity;
+      const newQuantity = existingItem.quantity + quantity;
       
-      if (currentQty >= product.currentQuantity) {
+      // Validar estoque
+      if (isUnitSale) {
+        const totalUnitsInCart = cart
+          .filter(i => i.product?.id === product.id)
+          .reduce((sum, i) => sum + (i.sellType === 'unit' ? i.quantity : (i.quantity * (product.unitsPerPackage || 1))), 0);
+        const availableUnits = (product.qtdUnitsAvailable || product.currentQuantity * (product.unitsPerPackage || 1));
+        if (totalUnitsInCart + quantity > availableUnits) {
+          toast.error('Quantidade de unidades maior que o disponível');
+          return;
+        }
+      } else {
+        if (newQuantity > product.currentQuantity) {
+          toast.error('Quantidade máxima atingida');
+          return;
+        }
+      }
+      
+      setCart(cart.map(item => 
+        item.id === existingItem.id 
+          ? { ...item, quantity: newQuantity, total: newQuantity * item.unitPrice }
+          : item
+      ));
+    } else {
+      const description = isUnitSale 
+        ? `${product.name} (${product.unitName || 'Unidade'})`
+        : product.name;
+        
+      setCart([...cart, {
+        id: crypto.randomUUID(),
+        type: 'product',
+        product,
+        description,
+        quantity,
+        unitPrice,
+        total: quantity * unitPrice,
+        sellType,
+        unitsSold: isUnitSale ? quantity : 0,
+      }]);
+    }
+    
+    setSearchTerm('');
+    setShowUnitChoiceModal(false);
+    setProductForUnitChoice(null);
+    searchInputRef.current?.focus();
+  };
+
+  // Confirmar venda por unidade
+  const confirmUnitSale = () => {
+    if (!productForUnitChoice) return;
+    const qty = parseInt(unitQuantityInput) || 1;
+    addToCart(productForUnitChoice, 'unit', qty);
+  };
+
+  // Confirmar venda por embalagem
+  const confirmPackageSale = () => {
+    if (!productForUnitChoice) return;
+    // Forçar adição como embalagem
+    const product = productForUnitChoice;
+    const existingItem = cart.find(item => 
+      item.type === 'product' && 
+      item.product?.id === product.id && 
+      item.sellType === 'package'
+    );
+    
+    if (existingItem) {
+      if (existingItem.quantity >= product.currentQuantity) {
         toast.error('Quantidade máxima atingida');
         return;
       }
-      
       setCart(cart.map(item => 
         item.id === existingItem.id 
           ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.unitPrice }
@@ -277,10 +376,14 @@ export default function PDV() {
         quantity: 1,
         unitPrice,
         total: unitPrice,
+        sellType: 'package',
+        unitsSold: 0,
       }]);
     }
     
     setSearchTerm('');
+    setShowUnitChoiceModal(false);
+    setProductForUnitChoice(null);
     searchInputRef.current?.focus();
   };
 
@@ -409,6 +512,8 @@ export default function PDV() {
             productId: item.product?.id,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
+            sellType: item.sellType || 'package',
+            unitsSold: item.unitsSold || 0,
           })),
           laborItems: cart.filter(i => i.type === 'labor').map(item => ({
             description: item.description,
@@ -1356,6 +1461,90 @@ export default function PDV() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Escolha de Tipo de Venda (Embalagem ou Unidade) */}
+      <Modal
+        isOpen={showUnitChoiceModal}
+        onClose={() => {
+          setShowUnitChoiceModal(false);
+          setProductForUnitChoice(null);
+        }}
+        title="Como deseja vender?"
+        size="sm"
+      >
+        {productForUnitChoice && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h3 className="font-bold text-foreground">{productForUnitChoice.name}</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {productForUnitChoice.packageName || 'Embalagem'}: {productForUnitChoice.unitsPerPackage} {productForUnitChoice.unitName || 'unidades'}
+              </p>
+            </div>
+
+            {/* Opção Embalagem */}
+            <button
+              onClick={confirmPackageSale}
+              className="w-full p-4 border-2 border-border rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
+            >
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="font-bold text-foreground">
+                    📦 Vender por {productForUnitChoice.packageName || 'Embalagem'}
+                  </span>
+                  <p className="text-sm text-muted-foreground">
+                    {productForUnitChoice.unitsPerPackage} {productForUnitChoice.unitName || 'unidades'} por embalagem
+                  </p>
+                </div>
+                <span className="text-xl font-bold text-success">
+                  R$ {parseFloat(productForUnitChoice.salePrice).toFixed(2)}
+                </span>
+              </div>
+            </button>
+
+            {/* Opção Unidade */}
+            <div className="p-4 border-2 border-border rounded-lg space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="font-bold text-foreground">
+                    🔸 Vender por {productForUnitChoice.unitName || 'Unidade'}
+                  </span>
+                  <p className="text-sm text-muted-foreground">
+                    Disponível: {productForUnitChoice.qtdUnitsAvailable || (productForUnitChoice.currentQuantity * (productForUnitChoice.unitsPerPackage || 1))} unidades
+                  </p>
+                </div>
+                <span className="text-xl font-bold text-success">
+                  R$ {parseFloat(productForUnitChoice.unitPrice || '0').toFixed(2)}/un
+                </span>
+              </div>
+              
+              <div className="flex gap-2 items-center">
+                <label className="text-sm text-muted-foreground whitespace-nowrap">Quantidade:</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max={productForUnitChoice.qtdUnitsAvailable || (productForUnitChoice.currentQuantity * (productForUnitChoice.unitsPerPackage || 1))}
+                  value={unitQuantityInput}
+                  onChange={(e) => setUnitQuantityInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={confirmUnitSale}>
+                  Adicionar
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground text-right">
+                Total: R$ {(parseFloat(unitQuantityInput || '0') * parseFloat(productForUnitChoice.unitPrice || '0')).toFixed(2)}
+              </p>
+            </div>
+
+            <Button variant="secondary" onClick={() => {
+              setShowUnitChoiceModal(false);
+              setProductForUnitChoice(null);
+            }} className="w-full">
+              Cancelar
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );

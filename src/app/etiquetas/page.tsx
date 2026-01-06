@@ -195,6 +195,31 @@ export default function EtiquetasPage() {
     fetchProducts();
   }, [fetchProducts]);
 
+  // Carregar produtos selecionados do localStorage (vindos da página de estoque)
+  useEffect(() => {
+    const selectedProductsJson = localStorage.getItem('selectedProductsForLabels');
+    if (selectedProductsJson && products.length > 0) {
+      try {
+        const selectedIds: string[] = JSON.parse(selectedProductsJson);
+        const selectedProducts = products.filter(p => selectedIds.includes(p.id));
+        
+        if (selectedProducts.length > 0) {
+          const newLabelItems = selectedProducts.map(product => ({
+            product,
+            quantity: 1,
+          }));
+          setLabelItems(newLabelItems);
+          toast.success(`${selectedProducts.length} produto(s) adicionado(s) do estoque`);
+        }
+        
+        // Limpar localStorage após carregar
+        localStorage.removeItem('selectedProductsForLabels');
+      } catch {
+        console.error('Erro ao processar produtos selecionados');
+      }
+    }
+  }, [products]);
+
   // Detectar clique fora do container de busca para fechar o dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

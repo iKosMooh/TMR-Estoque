@@ -85,10 +85,12 @@ export async function POST(request: NextRequest) {
       quantity: number;
       unitPrice: number;
       total: number;
+      sellType: 'package' | 'unit';
+      unitsSold: number;
     }> = [];
 
     for (const item of items) {
-      const { productId, quantity, unitPrice } = item;
+      const { productId, quantity, unitPrice, sellType = 'package', unitsSold = 0 } = item;
       
       if (!productId || !quantity || quantity <= 0) {
         return NextResponse.json({ error: 'Dados de item inválidos' }, { status: 400 });
@@ -113,10 +115,26 @@ export async function POST(request: NextRequest) {
 
       const totalStock = batches.reduce((sum, b) => sum + b.quantityRemaining, 0);
 
-      if (totalStock < quantity) {
-        return NextResponse.json({ 
-          error: `Estoque insuficiente para ${product[0].name}. Disponível: ${totalStock}` 
-        }, { status: 400 });
+      // Verificar se o produto permite venda por unidade
+      const productSellsByUnit = product[0].sellByUnit === 1;
+
+      // Verificar estoque baseado no tipo de venda
+      if (sellType === 'unit' && productSellsByUnit) {
+        // Venda por unidade - verificar unidades disponíveis
+        const unitsPerPackage = product[0].unitsPerPackage || 1;
+        const totalUnitsAvailable = product[0].qtdUnitsAvailable || (totalStock * unitsPerPackage);
+        if (quantity > totalUnitsAvailable) {
+          return NextResponse.json({ 
+            error: `Unidades insuficientes para ${product[0].name}. Disponível: ${totalUnitsAvailable} unidades` 
+          }, { status: 400 });
+        }
+      } else {
+        // Venda por embalagem - verificar embalagens disponíveis
+        if (totalStock < quantity) {
+          return NextResponse.json({ 
+            error: `Estoque insuficiente para ${product[0].name}. Disponível: ${totalStock}` 
+          }, { status: 400 });
+        }
       }
 
       const price = unitPrice || parseFloat(product[0].precoVenda);
@@ -127,6 +145,8 @@ export async function POST(request: NextRequest) {
         quantity,
         unitPrice: price,
         total: itemTotal,
+        sellType: sellType as 'package' | 'unit',
+        unitsSold: sellType === 'unit' ? quantity : 0,
       });
 
       subtotal += itemTotal;
@@ -163,56 +183,131 @@ export async function POST(request: NextRequest) {
         unitPrice: item.unitPrice.toString(),
         discount: '0',
         total: item.total.toString(),
+        sellType: item.sellType,
+        unitsSold: item.unitsSold,
       });
 
-      // Dar baixa no estoque usando FIFO (lotes mais antigos primeiro)
-      let remainingQty = item.quantity;
-      const batches = await db
-        .select()
-        .from(productBatches)
-        .where(eq(productBatches.productId, item.productId))
-        .orderBy(productBatches.purchaseDate);
-
-      for (const batch of batches) {
-        if (remainingQty <= 0) break;
-
-        const toDeduct = Math.min(remainingQty, batch.quantityRemaining);
-        
-        await db
-          .update(productBatches)
-          .set({ quantityRemaining: batch.quantityRemaining - toDeduct })
-          .where(eq(productBatches.id, batch.id));
-
-        remainingQty -= toDeduct;
-      }
-
-      // Atualizar estoque do produto
-      const product = await db
+      // Buscar produto para obter unidades por embalagem
+      const productData = await db
         .select()
         .from(products)
         .where(eq(products.id, item.productId))
         .limit(1);
+      
+      const unitsPerPackage = productData[0]?.unitsPerPackage || 1;
 
-      if (product.length > 0) {
+      if (item.sellType === 'unit') {
+        // Venda por unidade - deduzir unidades do estoque
+        // Atualizar quantidade de unidades disponíveis
+        const currentUnitsAvailable = productData[0]?.qtdUnitsAvailable || 0;
+        const newUnitsAvailable = currentUnitsAvailable - item.quantity;
+        
+        // Calcular quantas embalagens completas foram usadas
+        // (quando unidades restantes em uma embalagem acabam)
+        const currentPackageQty = productData[0]?.qtdAtual || 0;
+        const totalUnitsBeforeSale = currentPackageQty * unitsPerPackage;
+        const totalUnitsAfterSale = totalUnitsBeforeSale - item.quantity;
+        const newPackageQty = Math.floor(totalUnitsAfterSale / unitsPerPackage);
+        const remainderUnits = totalUnitsAfterSale % unitsPerPackage;
+        
         await db
           .update(products)
           .set({
-            qtdAtual: (product[0].qtdAtual || 0) - item.quantity,
-            qtdSaidaTotal: (product[0].qtdSaidaTotal || 0) + item.quantity,
+            qtdUnitsAvailable: newUnitsAvailable > 0 ? newUnitsAvailable : remainderUnits,
+            qtdAtual: newPackageQty,
+            qtdSaidaTotal: (productData[0]?.qtdSaidaTotal || 0) + (currentPackageQty - newPackageQty),
           })
           .where(eq(products.id, item.productId));
-      }
 
-      // Registrar movimento
-      await db.insert(movements).values({
-        id: crypto.randomUUID(),
-        produtoId: item.productId,
-        tipo: 'saida',
-        quantidade: item.quantity,
-        precoUnitario: item.unitPrice.toString(),
-        data: now,
-        referencia: orderNumber,
-      });
+        // Dar baixa nos lotes (proporcionalmente)
+        const packagesToDeduct = currentPackageQty - newPackageQty;
+        if (packagesToDeduct > 0) {
+          let remainingQty = packagesToDeduct;
+          const batches = await db
+            .select()
+            .from(productBatches)
+            .where(eq(productBatches.productId, item.productId))
+            .orderBy(productBatches.purchaseDate);
+
+          for (const batch of batches) {
+            if (remainingQty <= 0) break;
+
+            const toDeduct = Math.min(remainingQty, batch.quantityRemaining);
+            
+            await db
+              .update(productBatches)
+              .set({ 
+                quantityRemaining: batch.quantityRemaining - toDeduct,
+                unitsRemaining: (batch.unitsRemaining || 0) - (toDeduct * unitsPerPackage),
+              })
+              .where(eq(productBatches.id, batch.id));
+
+            remainingQty -= toDeduct;
+          }
+        }
+
+        // Registrar movimento
+        await db.insert(movements).values({
+          id: crypto.randomUUID(),
+          produtoId: item.productId,
+          tipo: 'saida',
+          quantidade: item.quantity,
+          precoUnitario: item.unitPrice.toString(),
+          data: now,
+          referencia: `${orderNumber} (${item.quantity} unidades)`,
+        });
+      } else {
+        // Venda por embalagem - comportamento original
+        // Dar baixa no estoque usando FIFO (lotes mais antigos primeiro)
+        let remainingQty = item.quantity;
+        const batches = await db
+          .select()
+          .from(productBatches)
+          .where(eq(productBatches.productId, item.productId))
+          .orderBy(productBatches.purchaseDate);
+
+        for (const batch of batches) {
+          if (remainingQty <= 0) break;
+
+          const toDeduct = Math.min(remainingQty, batch.quantityRemaining);
+          
+          await db
+            .update(productBatches)
+            .set({ 
+              quantityRemaining: batch.quantityRemaining - toDeduct,
+              unitsRemaining: (batch.unitsRemaining || 0) - (toDeduct * unitsPerPackage),
+            })
+            .where(eq(productBatches.id, batch.id));
+
+          remainingQty -= toDeduct;
+        }
+
+        // Atualizar estoque do produto
+        if (productData.length > 0) {
+          const newQtdAtual = (productData[0].qtdAtual || 0) - item.quantity;
+          const newUnitsAvailable = newQtdAtual * unitsPerPackage;
+          
+          await db
+            .update(products)
+            .set({
+              qtdAtual: newQtdAtual,
+              qtdSaidaTotal: (productData[0].qtdSaidaTotal || 0) + item.quantity,
+              qtdUnitsAvailable: newUnitsAvailable,
+            })
+            .where(eq(products.id, item.productId));
+        }
+
+        // Registrar movimento
+        await db.insert(movements).values({
+          id: crypto.randomUUID(),
+          produtoId: item.productId,
+          tipo: 'saida',
+          quantidade: item.quantity,
+          precoUnitario: item.unitPrice.toString(),
+          data: now,
+          referencia: orderNumber,
+        });
+      }
     }
 
     // Atualizar totais da sessão de caixa se houver
