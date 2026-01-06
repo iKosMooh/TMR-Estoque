@@ -35,7 +35,7 @@ export async function PUT(
     const body = await request.json();
 
     const { name, code, description, addressStreet, addressNumber, addressCity, addressState, isMain, isActive } = body;
-    const now = new Date();
+    const now = new Date().toISOString();
 
     // Se for definido como principal, desmarcar os outros
     if (isMain) {
@@ -82,7 +82,7 @@ export async function DELETE(
 
     await db
       .update(warehouses)
-      .set({ isActive: 0, updatedAt: new Date() })
+      .set({ isActive: 0, updatedAt: new Date().toISOString() })
       .where(eq(warehouses.id, id));
 
     return NextResponse.json({ success: true });

@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const id = crypto.randomUUID();
-    const now = new Date();
+    const now = new Date().toISOString();
 
     await db.insert(posSessions).values({
       id,
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id,
       message: 'Caixa aberto com sucesso',
-      openedAt: now.toISOString(),
+      openedAt: now,
       openingBalance,
     });
   } catch (error) {

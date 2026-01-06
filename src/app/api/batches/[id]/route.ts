@@ -27,7 +27,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     const product = await db.select().from(products).where(eq(products.id, productId));
     if (product.length > 0) {
       await db.update(products).set({
-        totalEntry: Math.max(0, product[0].totalEntry - quantityReceived),
+        qtdEntradaTotal: Math.max(0, product[0].qtdEntradaTotal - quantityReceived),
       }).where(eq(products.id, productId));
     }
 

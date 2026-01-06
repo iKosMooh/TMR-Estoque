@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
     let dateFilter = undefined;
     if (startDate && endDate) {
       dateFilter = and(
-        gte(movements.data, new Date(startDate)),
-        lte(movements.data, new Date(endDate))
+        gte(movements.data, startDate),
+        lte(movements.data, endDate)
       );
     }
 
@@ -28,10 +28,10 @@ export async function GET(request: NextRequest) {
         date: sql<string>`DATE(${movements.data})`,
         reference: movements.referencia,
         productName: products.name,
-        productCode: products.internalCode,
+        productCode: products.codigoInterno,
       })
       .from(movements)
-      .innerJoin(products, eq(movements.produtoId, products.id)) // Ajustado de 'productId' para 'produtoId'
+      .innerJoin(products, eq(movements.produtoId, products.id))
       .where(dateFilter)
       .orderBy(desc(movements.data));
 
@@ -39,9 +39,9 @@ export async function GET(request: NextRequest) {
     const stats = await db
       .select({
         totalProducts: sql<number>`count(distinct ${products.id})`,
-        totalStock: sql<number>`sum(${products.currentQuantity})`,
-        totalSales: sql<number>`sum(case when ${movements.tipo} = 'saida' then ${movements.quantidade} else 0 end)`, // Ajustado de 'type' para 'tipo', 'quantity' para 'quantidade'
-        totalRevenue: sql<number>`sum(case when ${movements.tipo} = 'saida' then ${movements.quantidade} * cast(${movements.precoUnitario} as decimal) else 0 end)`, // Ajustado de 'type' para 'tipo', 'quantity' para 'quantidade', 'unitPrice' para 'precoUnitario'
+        totalStock: sql<number>`sum(${products.qtdAtual})`,
+        totalSales: sql<number>`sum(case when ${movements.tipo} = 'saida' then ${movements.quantidade} else 0 end)`,
+        totalRevenue: sql<number>`sum(case when ${movements.tipo} = 'saida' then ${movements.quantidade} * cast(${movements.precoUnitario} as decimal) else 0 end)`,
       })
       .from(products)
       .leftJoin(movements, eq(products.id, movements.produtoId)) // Ajustado de 'productId' para 'produtoId'
@@ -51,15 +51,15 @@ export async function GET(request: NextRequest) {
     const topProducts = await db
       .select({
         productName: products.name,
-        productCode: products.internalCode,
-        totalSold: sql<number>`sum(${movements.quantidade})`, // Ajustado de 'quantity' para 'quantidade'
-        totalRevenue: sql<number>`sum(${movements.quantidade} * cast(${movements.precoUnitario} as decimal))`, // Ajustado de 'quantity' para 'quantidade', 'unitPrice' para 'precoUnitario'
+        productCode: products.codigoInterno,
+        totalSold: sql<number>`sum(${movements.quantidade})`,
+        totalRevenue: sql<number>`sum(${movements.quantidade} * cast(${movements.precoUnitario} as decimal))`,
       })
       .from(movements)
-      .innerJoin(products, eq(movements.produtoId, products.id)) // Ajustado de 'productId' para 'produtoId'
-      .where(and(eq(movements.tipo, 'saida'), dateFilter)) // Ajustado de 'type' para 'tipo'
-      .groupBy(products.id, products.name, products.internalCode)
-      .orderBy(desc(sql`sum(${movements.quantidade})`)) // Ajustado de 'quantity' para 'quantidade'
+      .innerJoin(products, eq(movements.produtoId, products.id))
+      .where(and(eq(movements.tipo, 'saida'), dateFilter))
+      .groupBy(products.id, products.name, products.codigoInterno)
+      .orderBy(desc(sql`sum(${movements.quantidade})`))
       .limit(10);
 
     return NextResponse.json({

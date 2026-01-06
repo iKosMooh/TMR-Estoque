@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     const id = uuidv4();
-    const now = new Date();
+    const now = new Date().toISOString();
 
     // Se for definido como principal, desmarcar os outros
     if (isMain) {

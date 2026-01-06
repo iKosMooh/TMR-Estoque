@@ -46,7 +46,7 @@ export async function PUT(
         imageUrl: imageUrl || null,
         sortOrder: sortOrder || 0,
         isActive: isActive !== undefined ? isActive : 1,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(productCategories.id, id));
 
@@ -71,7 +71,7 @@ export async function DELETE(
 
     await db
       .update(productCategories)
-      .set({ isActive: 0, updatedAt: new Date() })
+      .set({ isActive: 0, updatedAt: new Date().toISOString() })
       .where(eq(productCategories.id, id));
 
     return NextResponse.json({ success: true });

@@ -14,24 +14,24 @@ export async function POST(request: NextRequest) {
         const productId = crypto.randomUUID();
         await db.insert(products).values({
           id: productId,
-          internalCode: item.internalCode,
+          codigoInterno: item.internalCode,
           barcode: item.barcode,
           name: item.name,
           description: null,
-          salePrice: item.salePrice,
-          costPrice: item.salePrice, // Assuma custo = venda para simplificar
-          currentQuantity: item.quantity,
-          totalEntry: item.quantity,
-          totalExit: 0,
-          lastPurchaseDate: new Date(),
+          precoVenda: item.salePrice,
+          precoCusto: item.salePrice, // Assuma custo = venda para simplificar
+          qtdAtual: item.quantity,
+          qtdEntradaTotal: item.quantity,
+          qtdSaidaTotal: 0,
+          dataUltimaCompra: new Date().toISOString().split('T')[0],
           ncm: item.ncm,
-          lowStockThreshold: 5,
+          estoqueBaixoLimite: 5,
         });
         // Crie lote
         await db.insert(productBatches).values({
           id: crypto.randomUUID(),
           productId,
-          purchaseDate: new Date(),
+          purchaseDate: new Date().toISOString().split('T')[0],
           costPrice: item.salePrice,
           sellingPrice: item.salePrice,
           quantityReceived: item.quantity,
@@ -44,18 +44,18 @@ export async function POST(request: NextRequest) {
         await db.insert(productBatches).values({
           id: crypto.randomUUID(),
           productId: item.existing.id,
-          purchaseDate: new Date(),
+          purchaseDate: new Date().toISOString().split('T')[0],
           costPrice: item.salePrice,
           sellingPrice: item.salePrice,
           quantityReceived: item.quantity,
           quantityRemaining: item.quantity,
           xmlReference: 'NF-e Import',
         });
-        // Atualize totalEntry no produto
+        // Atualize qtdEntradaTotal no produto
         const current = await db.select().from(products).where(eq(products.id, item.existing.id));
         await db.update(products).set({
-          totalEntry: current[0].totalEntry + item.quantity,
-          lastPurchaseDate: new Date(),
+          qtdEntradaTotal: current[0].qtdEntradaTotal + item.quantity,
+          dataUltimaCompra: new Date().toISOString().split('T')[0],
         }).where(eq(products.id, item.existing.id));
         updated++;
       }

@@ -57,6 +57,7 @@ interface SaleReceipt {
   warrantyMonths: number;
   paymentMethod: string;
   notes: string;
+  sellerName: string;
 }
 
 export default function PDV() {
@@ -96,9 +97,24 @@ export default function PDV() {
   // Estados para recibo
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [receipt, setReceipt] = useState<SaleReceipt | null>(null);
-  const [printSize, setPrintSize] = useState<'A4' | 'A5'>('A5');
+  const [printSize, setPrintSize] = useState<'A4' | 'A5'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('printSize') as 'A4' | 'A5') || 'A5';
+    }
+    return 'A5';
+  });
+  const [sellerName, setSellerName] = useState<string>('Operador PDV');
   
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const printIframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Salvar preferência de tamanho de impressão
+  const handlePrintSizeChange = (size: 'A4' | 'A5') => {
+    setPrintSize(size);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('printSize', size);
+    }
+  };
 
   // Funções para calcular preço com margem
   const calculatePriceFromMarkup = (basePrice: number, markup: string): string => {
@@ -203,6 +219,15 @@ export default function PDV() {
     fetchProducts();
     fetchCustomers();
     checkSession();
+    // Buscar nome do vendedor da sessão autenticada
+    fetch('/api/auth/session')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.user?.name) {
+          setSellerName(data.user.name);
+        }
+      })
+      .catch(() => {});
   }, [fetchProducts, fetchCustomers, checkSession]);
 
   // Foco no input de busca
@@ -415,6 +440,7 @@ export default function PDV() {
           warrantyMonths: addWarranty ? warrantyMonths : 0,
           paymentMethod: getPaymentMethodLabel(selectedPayment),
           notes,
+          sellerName,
         };
 
         setReceipt(newReceipt);
@@ -440,35 +466,136 @@ export default function PDV() {
   const printReceipt = () => {
     if (!receipt) return;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
     const pageWidth = printSize === 'A5' ? '148mm' : '210mm';
     const pageHeight = printSize === 'A5' ? '210mm' : '297mm';
-    const fontSize = printSize === 'A5' ? '10pt' : '12pt';
+    const fontSize = printSize === 'A5' ? '9pt' : '11pt';
+    const marginSize = printSize === 'A5' ? '8mm' : '12mm';
 
-    printWindow.document.write(`
+    const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Declaração de Venda - ${receipt.orderNumber}</title>
         <style>
-          @page { size: ${pageWidth} ${pageHeight}; margin: 10mm; }
-          body { font-family: Arial, sans-serif; font-size: ${fontSize}; margin: 0; padding: 15px; }
-          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          .header h1 { margin: 0; font-size: 1.5em; }
-          .header p { margin: 5px 0; color: #666; }
-          .info-row { display: flex; justify-content: space-between; margin: 5px 0; }
-          .section { margin: 15px 0; }
-          .section-title { font-weight: bold; margin-bottom: 10px; padding: 5px; background: #f0f0f0; }
-          table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-          th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-          th { background: #f5f5f5; }
+          @page {
+            size: ${pageWidth} ${pageHeight};
+            margin: ${marginSize};
+          }
+          @media print {
+            body {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+              margin: 0;
+              padding: 0;
+            }
+            * {
+              -webkit-box-sizing: border-box;
+              -moz-box-sizing: border-box;
+              box-sizing: border-box;
+            }
+          }
+          body {
+            font-family: Arial, sans-serif;
+            font-size: ${fontSize};
+            line-height: 1.3;
+            margin: 0;
+            padding: 0;
+            color: #000;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+          }
+          .header h1 {
+            margin: 0 0 3px 0;
+            font-size: 1.4em;
+            font-weight: bold;
+          }
+          .header p {
+            margin: 2px 0;
+            color: #666;
+            font-size: 0.9em;
+          }
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+            font-size: 0.9em;
+          }
+          .section {
+            margin: 8px 0;
+          }
+          .section-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            padding: 3px 5px;
+            background: #f0f0f0;
+            font-size: 0.95em;
+            border: 1px solid #ddd;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 5px 0;
+            font-size: 0.85em;
+          }
+          th, td {
+            padding: 4px 2px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+          }
+          th {
+            background: #f5f5f5;
+            font-weight: bold;
+            font-size: 0.8em;
+          }
           .text-right { text-align: right; }
-          .total-row { font-weight: bold; font-size: 1.2em; background: #e8f5e9; }
-          .warranty-box { border: 1px solid #333; padding: 10px; margin: 15px 0; background: #fffde7; }
-          .footer { margin-top: 30px; text-align: center; font-size: 0.9em; color: #666; }
-          .signature { margin-top: 40px; border-top: 1px solid #333; padding-top: 5px; width: 200px; text-align: center; }
+          .total-row {
+            font-weight: bold;
+            font-size: 1.1em;
+            background: #e8f5e9;
+            border-top: 2px solid #333;
+          }
+          .warranty-box {
+            border: 1px solid #333;
+            padding: 6px;
+            margin: 8px 0;
+            background: #fffde7;
+            font-size: 0.8em;
+          }
+          .footer {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #666;
+          }
+          .signatures-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            page-break-inside: avoid;
+          }
+          .signature {
+            border-top: 1px solid #333;
+            padding-top: 3px;
+            width: 45%;
+            text-align: center;
+            font-size: 0.8em;
+          }
+          .signature-name {
+            font-size: 0.75em;
+            margin-top: 2px;
+            color: #333;
+            font-weight: bold;
+          }
+          .break-before {
+            page-break-before: always;
+          }
+          .break-inside-avoid {
+            page-break-inside: avoid;
+          }
         </style>
       </head>
       <body>
@@ -478,16 +605,26 @@ export default function PDV() {
           <p>${receipt.date}</p>
         </div>
 
+        <div class="section break-inside-avoid">
+          <div class="section-title">VENDEDOR</div>
+          <div class="info-row"><span>Nome:</span><span>${receipt.sellerName}</span></div>
+        </div>
+
         ${receipt.customer ? `
-          <div class="section">
+          <div class="section break-inside-avoid">
             <div class="section-title">CLIENTE</div>
             <div class="info-row"><span>Nome:</span><span>${receipt.customer.name}</span></div>
             ${receipt.customer.cpfCnpj ? `<div class="info-row"><span>CPF/CNPJ:</span><span>${receipt.customer.cpfCnpj}</span></div>` : ''}
             ${receipt.customer.phone ? `<div class="info-row"><span>Telefone:</span><span>${receipt.customer.phone}</span></div>` : ''}
           </div>
-        ` : ''}
+        ` : `
+          <div class="section break-inside-avoid">
+            <div class="section-title">CLIENTE</div>
+            <div class="info-row"><span>Nome:</span><span>Consumidor Final</span></div>
+          </div>
+        `}
 
-        <div class="section">
+        <div class="section break-inside-avoid">
           <div class="section-title">ITENS</div>
           <table>
             <thead>
@@ -501,7 +638,7 @@ export default function PDV() {
             <tbody>
               ${receipt.items.map(item => `
                 <tr>
-                  <td>${item.description}${item.type === 'labor' ? ' (Mão de Obra)' : ''}</td>
+                  <td style="max-width: 120px; word-wrap: break-word;">${item.description}${item.type === 'labor' ? ' (Mão de Obra)' : ''}</td>
                   <td class="text-right">${item.quantity}</td>
                   <td class="text-right">R$ ${item.unitPrice.toFixed(2)}</td>
                   <td class="text-right">R$ ${item.total.toFixed(2)}</td>
@@ -511,7 +648,7 @@ export default function PDV() {
           </table>
         </div>
 
-        <div class="section">
+        <div class="section break-inside-avoid">
           <div class="section-title">RESUMO</div>
           <div class="info-row"><span>Subtotal:</span><span>R$ ${receipt.subtotal.toFixed(2)}</span></div>
           ${receipt.discount > 0 ? `<div class="info-row"><span>Desconto:</span><span>- R$ ${receipt.discount.toFixed(2)}</span></div>` : ''}
@@ -521,33 +658,63 @@ export default function PDV() {
         </div>
 
         ${receipt.warrantyMonths > 0 ? `
-          <div class="warranty-box">
+          <div class="warranty-box break-inside-avoid">
             <strong>⚠️ TERMO DE GARANTIA</strong><br>
-            Este produto/serviço possui garantia de <strong>${receipt.warrantyMonths} meses</strong> 
+            Este produto/serviço possui garantia de <strong>${receipt.warrantyMonths} meses</strong>
             a partir da data de emissão deste documento.<br>
             A garantia cobre defeitos de fabricação e mão de obra, não incluindo mau uso ou danos externos.
           </div>
         ` : ''}
 
         ${receipt.notes ? `
-          <div class="section">
+          <div class="section break-inside-avoid">
             <div class="section-title">OBSERVAÇÕES</div>
-            <p>${receipt.notes}</p>
+            <p style="font-size: 0.85em; margin: 3px 0;">${receipt.notes}</p>
           </div>
         ` : ''}
 
-        <div class="footer">
+        <div class="signatures-container break-inside-avoid">
           <div class="signature">
+            <div class="signature-name">${receipt.sellerName}</div>
+            Assinatura do Vendedor
+          </div>
+          <div class="signature">
+            <div class="signature-name">${receipt.customer?.name || 'Consumidor Final'}</div>
             Assinatura do Cliente
           </div>
-          <p style="margin-top: 20px;">Obrigado pela preferência!</p>
+        </div>
+
+        <div class="footer">
+          <p>Obrigado pela preferência!</p>
         </div>
       </body>
       </html>
-    `);
+    `;
 
-    printWindow.document.close();
-    printWindow.print();
+    // Criar iframe oculto para impressão
+    let iframe = document.getElementById('print-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'print-iframe';
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.style.visibility = 'hidden';
+      document.body.appendChild(iframe);
+    }
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(printContent);
+      iframeDoc.close();
+      
+      // Aguardar o conteúdo carregar e imprimir
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+      }, 250);
+    }
   };
 
   // Abrir caixa
@@ -1082,7 +1249,7 @@ export default function PDV() {
                   <input
                     type="radio"
                     checked={printSize === 'A5'}
-                    onChange={() => setPrintSize('A5')}
+                    onChange={() => handlePrintSizeChange('A5')}
                     className="w-4 h-4"
                   />
                   <span>A5 (Padrão)</span>
@@ -1091,7 +1258,7 @@ export default function PDV() {
                   <input
                     type="radio"
                     checked={printSize === 'A4'}
-                    onChange={() => setPrintSize('A4')}
+                    onChange={() => handlePrintSizeChange('A4')}
                     className="w-4 h-4"
                   />
                   <span>A4</span>

@@ -457,6 +457,7 @@ export default function Clientes() {
                 label={formData.type === 'pf' ? 'Nome Completo *' : 'Razão Social *'}
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
+                placeholder={formData.type === 'pf' ? 'Ex: João da Silva' : 'Ex: Empresa Ltda'}
                 required
               />
             </div>
@@ -471,6 +472,7 @@ export default function Clientes() {
               type="email"
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
+              placeholder="exemplo@email.com"
             />
           </div>
 
@@ -507,6 +509,7 @@ export default function Clientes() {
                   label="Logradouro"
                   value={formData.addressStreet}
                   onChange={(e) => handleInputChange('addressStreet', e.target.value)}
+                  placeholder="Rua, Avenida, etc."
                 />
               </div>
               <div className="md:col-span-1">
@@ -514,6 +517,7 @@ export default function Clientes() {
                   label="Número"
                   value={formData.addressNumber}
                   onChange={(e) => handleInputChange('addressNumber', e.target.value)}
+                  placeholder="123"
                 />
               </div>
               <div className="md:col-span-2">
@@ -521,6 +525,7 @@ export default function Clientes() {
                   label="Complemento"
                   value={formData.addressComplement}
                   onChange={(e) => handleInputChange('addressComplement', e.target.value)}
+                  placeholder="Apto, Sala, Bloco..."
                 />
               </div>
               <div className="md:col-span-3">
@@ -528,6 +533,7 @@ export default function Clientes() {
                   label="Bairro"
                   value={formData.addressNeighborhood}
                   onChange={(e) => handleInputChange('addressNeighborhood', e.target.value)}
+                  placeholder="Nome do bairro"
                 />
               </div>
               <div className="md:col-span-4">
@@ -535,6 +541,7 @@ export default function Clientes() {
                   label="Cidade"
                   value={formData.addressCity}
                   onChange={(e) => handleInputChange('addressCity', e.target.value)}
+                  placeholder="Nome da cidade"
                 />
               </div>
               <div className="md:col-span-2">
@@ -543,6 +550,7 @@ export default function Clientes() {
                   value={formData.addressState}
                   onChange={(e) => handleInputChange('addressState', e.target.value.toUpperCase().slice(0, 2))}
                   maxLength={2}
+                  placeholder="SP"
                 />
               </div>
             </div>
@@ -559,6 +567,7 @@ export default function Clientes() {
                 min="0"
                 value={formData.creditLimit}
                 onChange={(e) => handleInputChange('creditLimit', e.target.value)}
+                placeholder="0,00"
               />
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-foreground mb-1">
@@ -569,6 +578,7 @@ export default function Clientes() {
                   onChange={(e) => handleInputChange('notes', e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 border border-border rounded-md shadow-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="Observações gerais sobre o cliente..."
                 />
               </div>
             </div>

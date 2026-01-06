@@ -29,6 +29,41 @@
       "when": 1767376826154,
       "tag": "0003_youthful_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1767648676672,
+      "tag": "0004_known_zarek",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1767648945344,
+      "tag": "0005_sleepy_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1767655107904,
+      "tag": "0006_noisy_captain_cross",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1767656201300,
+      "tag": "0007_deep_jackpot",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1767658281972,
+      "tag": "0008_wonderful_arachne",
+      "breakpoints": true
     }
   ]
 }

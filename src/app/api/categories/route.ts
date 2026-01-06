@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const id = uuidv4();
-    const now = new Date();
+    const now = new Date().toISOString();
 
     await db.insert(productCategories).values({
       id,

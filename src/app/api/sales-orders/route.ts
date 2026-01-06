@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { salesOrders, salesOrderItems, products, productBatches, posSessions, movements } from '@/lib/schema';
-import { eq, desc } from 'drizzle-orm';
+import { salesOrders, salesOrderItems, products, productBatches, posSessions, movements, customers } from '@/lib/schema';
+import { eq, desc, asc, sql } from 'drizzle-orm';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 
 // GET - Listar pedidos de venda
 export async function GET(request: NextRequest) {
@@ -10,7 +12,22 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const sessionId = searchParams.get('sessionId');
     
-    let query = db.select().from(salesOrders);
+    let query = db.select({
+      id: salesOrders.id,
+      orderNumber: salesOrders.orderNumber,
+      customerId: salesOrders.customerId,
+      customerName: sql<string>`COALESCE(${customers.name}, 'Cliente não definido')`,
+      customerCpfCnpj: sql<string>`COALESCE(${customers.cpfCnpj}, 'N/A')`,
+      subtotal: salesOrders.subtotal,
+      discount: salesOrders.discount,
+      total: salesOrders.total,
+      paymentMethod: salesOrders.paymentMethod,
+      status: salesOrders.status,
+      notes: salesOrders.notes,
+      createdAt: salesOrders.createdAt,
+      sellerName: salesOrders.sellerName,
+      sellerSignature: salesOrders.sellerSignature,
+    }).from(salesOrders).leftJoin(customers, eq(salesOrders.customerId, customers.id));
     
     if (status) {
       query = query.where(eq(salesOrders.status, status as 'pending' | 'completed' | 'cancelled')) as typeof query;
@@ -32,6 +49,15 @@ export async function GET(request: NextRequest) {
 // POST - Criar novo pedido de venda (PDV)
 export async function POST(request: NextRequest) {
   try {
+    // @ts-ignore - Tipos do next-auth conflitantes, funciona em runtime
+    const session = await getServerSession(authOptions);
+    // @ts-ignore
+    const userId = session?.user?.id as string | undefined;
+    // @ts-ignore
+    const userName = session?.user?.name as string | undefined;
+    // @ts-ignore
+    const userEmail = session?.user?.email as string | undefined;
+    
     const body = await request.json();
     
     const {
@@ -50,7 +76,7 @@ export async function POST(request: NextRequest) {
     // Gerar número do pedido
     const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
     const orderId = crypto.randomUUID();
-    const now = new Date();
+    const now = new Date().toISOString();
 
     // Calcular subtotal
     let subtotal = 0;
@@ -93,7 +119,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      const price = unitPrice || parseFloat(product[0].salePrice);
+      const price = unitPrice || parseFloat(product[0].precoVenda);
       const itemTotal = price * quantity;
       
       processedItems.push({
@@ -114,6 +140,9 @@ export async function POST(request: NextRequest) {
       orderNumber,
       customerId: customerId || null,
       posSessionId: posSessionId || null,
+      userId: userId || null,
+      sellerName: userName || null,
+      sellerSignature: userName ? `${userName} (${userEmail || 'N/A'})` : null,
       subtotal: subtotal.toString(),
       discount: discount.toString(),
       total: total.toString(),
@@ -168,8 +197,8 @@ export async function POST(request: NextRequest) {
         await db
           .update(products)
           .set({
-            currentQuantity: product[0].currentQuantity - item.quantity,
-            totalExit: product[0].totalExit + item.quantity,
+            qtdAtual: (product[0].qtdAtual || 0) - item.quantity,
+            qtdSaidaTotal: (product[0].qtdSaidaTotal || 0) + item.quantity,
           })
           .where(eq(products.id, item.productId));
       }
@@ -217,5 +246,85 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Erro ao criar pedido:', error);
     return NextResponse.json({ error: 'Erro ao processar venda' }, { status: 500 });
+  }
+}
+
+// DELETE - Cancelar/excluir pedido de venda
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('id');
+    
+    if (!orderId) {
+      return NextResponse.json({ error: 'ID do pedido obrigatório' }, { status: 400 });
+    }
+
+    // Verificar se o pedido existe e está pendente
+    const order = await db
+      .select()
+      .from(salesOrders)
+      .where(eq(salesOrders.id, orderId))
+      .limit(1);
+
+    if (order.length === 0) {
+      return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+    }
+
+    if (order[0].status !== 'pending') {
+      return NextResponse.json({ error: 'Apenas pedidos pendentes podem ser cancelados' }, { status: 400 });
+    }
+
+    // Buscar itens do pedido
+    const items = await db
+      .select()
+      .from(salesOrderItems)
+      .where(eq(salesOrderItems.orderId, orderId));
+
+    // Reverter estoque para cada item
+    for (const item of items) {
+      // Buscar lotes ordenados por data (PEPS - mais antigo primeiro)
+      const batches = await db
+        .select()
+        .from(productBatches)
+        .where(eq(productBatches.productId, item.productId))
+        .orderBy(asc(productBatches.purchaseDate));
+
+      let remainingToReturn = item.quantity;
+
+      // Devolver ao lote mais antigo primeiro
+      for (const batch of batches) {
+        if (remainingToReturn <= 0) break;
+        const addBack = Math.min(remainingToReturn, batch.quantityRemaining);
+        await db
+          .update(productBatches)
+          .set({
+            quantityRemaining: batch.quantityRemaining + addBack,
+          })
+          .where(eq(productBatches.id, batch.id));
+        remainingToReturn -= addBack;
+      }
+
+      // Atualizar qtdSaidaTotal no produto
+      const product = await db.select().from(products).where(eq(products.id, item.productId));
+      if (product.length > 0) {
+        await db
+          .update(products)
+          .set({
+            qtdSaidaTotal: Math.max(0, (product[0].qtdSaidaTotal || 0) - item.quantity),
+          })
+          .where(eq(products.id, item.productId));
+      }
+    }
+
+    // Deletar itens do pedido
+    await db.delete(salesOrderItems).where(eq(salesOrderItems.orderId, orderId));
+
+    // Deletar pedido
+    await db.delete(salesOrders).where(eq(salesOrders.id, orderId));
+
+    return NextResponse.json({ message: 'Pedido cancelado e excluído com sucesso' });
+  } catch (error) {
+    console.error('Erro ao cancelar pedido:', error);
+    return NextResponse.json({ error: 'Erro ao cancelar pedido' }, { status: 500 });
   }
 }

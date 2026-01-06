@@ -33,7 +33,7 @@ export async function PUT(request: NextRequest) {
     if (sellingPrice !== undefined) updates.sellingPrice = sellingPrice;
     if (quantityReceived !== undefined) updates.quantityReceived = quantityReceived;
     if (quantityRemaining !== undefined) updates.quantityRemaining = quantityRemaining;
-    if (purchaseDate !== undefined) updates.purchaseDate = new Date(purchaseDate);
+    if (purchaseDate !== undefined) updates.purchaseDate = purchaseDate; // Já é string YYYY-MM-DD
     if (observation !== undefined) updates.observation = observation;
 
     await db.update(productBatches).set(updates).where(eq(productBatches.id, id));
@@ -43,7 +43,7 @@ export async function PUT(request: NextRequest) {
       const product = await db.select().from(products).where(eq(products.id, productId));
       if (product.length > 0) {
         await db.update(products).set({
-          totalEntry: product[0].totalEntry + quantityDiff,
+          qtdEntradaTotal: product[0].qtdEntradaTotal + quantityDiff,
         }).where(eq(products.id, productId));
       }
     }

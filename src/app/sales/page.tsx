@@ -18,7 +18,7 @@ export default function SalesPage() {
     const totalPrice = quantity * unitPrice;
     await fetch('/api/sales', {
       method: 'POST',
-      body: JSON.stringify({ productId, quantity, unitPrice: unitPrice.toString(), totalPrice: totalPrice.toString() }),
+      body: JSON.stringify({ productId, quantitySold: quantity, unitPrice }),
       headers: { 'Content-Type': 'application/json' },
     });
     loadSales();

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
         // Verifique se produto existe
         const existing = await db.select().from(products).where(
-          or(eq(products.internalCode, internalCode), barcode ? eq(products.barcode, barcode) : undefined)
+          or(eq(products.codigoInterno, internalCode), barcode ? eq(products.barcode, barcode) : undefined)
         ).limit(1);
         const action = existing.length > 0 ? 'update' : 'create';
 
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
           cst,
           salePrice,
           quantity,
-          existing: existing.length > 0 ? { id: existing[0].id, currentQuantity: existing[0].currentQuantity } : null,
+          existing: existing.length > 0 ? { id: existing[0].id, currentQuantity: existing[0].qtdAtual } : null,
           action,
         };
       })

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     let whereClause = undefined;
     if (startDate && endDate) {
-      whereClause = and(gte(movements.data, new Date(startDate)), lte(movements.data, new Date(endDate)));
+      whereClause = and(gte(movements.data, startDate), lte(movements.data, endDate));
     }
 
     // Agrupar por data, somar entradas e saídas

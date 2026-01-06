@@ -49,11 +49,10 @@ const config: Config = {
         error: "var(--error)",
         info: "var(--primary)",
         // Níveis extras para design
-        "level-0": "var(--bg)",
-        "level-1": "var(--card-bg)",
-        "level-2": "rgba(0,0,0,0.03)",
-        "level-3": "rgba(0,0,0,0.06)",
-        "level-4": "rgba(0,0,0,0.10)",
+        "level1": "var(--card-bg)",
+        "level2": "rgba(0,0,0,0.03)",
+        "level3": "rgba(0,0,0,0.06)",
+        "level4": "rgba(0,0,0,0.10)",
       },
       borderRadius: {
         lg: "var(--radius)",

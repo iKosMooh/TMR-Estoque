@@ -25,6 +25,15 @@ interface Customer {
   email: string | null;
 }
 
+interface ServiceOrder {
+  id: string;
+  orderNumber: string;
+  title: string;
+  status: string;
+  customerName: string;
+  customerId: string;
+}
+
 interface SaleItem {
   id: string;
   type: 'product' | 'labor' | 'warranty';
@@ -53,8 +62,10 @@ interface SaleReceipt {
 export default function Vendas() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
+  const [orderSearch, setOrderSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -65,6 +76,7 @@ export default function Vendas() {
   // Estados para finalização
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit_card' | 'debit_card' | 'pix' | 'boleto'>('cash');
   const [addWarranty, setAddWarranty] = useState(false);
@@ -122,6 +134,7 @@ export default function Vendas() {
   useEffect(() => {
     fetchProducts();
     fetchCustomers();
+    fetchServiceOrders();
   }, []);
 
   const fetchProducts = async () => {
@@ -148,6 +161,23 @@ export default function Vendas() {
     }
   };
 
+  const fetchServiceOrders = async () => {
+    try {
+      // Buscar todas as OS (exceto canceladas e entregues)
+      const response = await fetch('/api/service-orders');
+      if (response.ok) {
+        const data = await response.json();
+        // Filtrar OS que podem ser vinculadas a vendas (todas exceto canceladas e entregues)
+        const ordersForBilling = (data.orders || []).filter(
+          (order: ServiceOrder) => order.status !== 'cancelled' && order.status !== 'delivered'
+        );
+        setServiceOrders(ordersForBilling);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar ordens de serviço:', error);
+    }
+  };
+
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.internalCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,7 +186,14 @@ export default function Vendas() {
 
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    (customer.cpfCnpj && customer.cpfCnpj.includes(customerSearch))
+    (customer.cpfCnpj && customer.cpfCnpj.includes(customerSearch)) ||
+    (customer.phone && customer.phone.includes(customerSearch))
+  );
+
+  const filteredServiceOrders = serviceOrders.filter(order =>
+    order.orderNumber.toLowerCase().includes(orderSearch.toLowerCase()) ||
+    order.title.toLowerCase().includes(orderSearch.toLowerCase()) ||
+    order.customerName.toLowerCase().includes(orderSearch.toLowerCase())
   );
 
   const addToSale = () => {
@@ -270,7 +307,7 @@ export default function Vendas() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             productId: item.product?.id,
-            quantity: item.quantity,
+            quantitySold: item.quantity,
             unitPrice: item.unitPrice,
           }),
         })
@@ -703,7 +740,7 @@ export default function Vendas() {
               Cliente (opcional)
             </label>
             <Input
-              placeholder="Buscar cliente por nome ou CPF/CNPJ..."
+              placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
             />
@@ -718,16 +755,82 @@ export default function Vendas() {
                     }}
                     className="p-2 hover:bg-level-3 cursor-pointer border-b border-border last:border-b-0"
                   >
-                    <span className="font-medium">{customer.name}</span>
-                    {customer.cpfCnpj && <span className="text-sm text-muted-foreground ml-2">({customer.cpfCnpj})</span>}
+                    <div className="font-medium">{customer.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {customer.cpfCnpj && <span>{customer.cpfCnpj}</span>}
+                      {customer.cpfCnpj && customer.phone && <span> • </span>}
+                      {customer.phone && <span>{customer.phone}</span>}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
+            {customerSearch && filteredCustomers.length === 0 && (
+              <div className="mt-2 p-3 text-center text-muted-foreground border border-border rounded-lg bg-level-2">
+                Nenhum cliente encontrado
+              </div>
+            )}
             {selectedCustomer && (
-              <div className="mt-2 p-2 bg-info/10 rounded-lg flex justify-between items-center">
-                <span>{selectedCustomer.name}</span>
-                <button onClick={() => setSelectedCustomer(null)} className="text-error">✕</button>
+              <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex justify-between items-center">
+                <div>
+                  <div className="font-medium text-foreground">{selectedCustomer.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {selectedCustomer.cpfCnpj || selectedCustomer.phone || selectedCustomer.email || 'Cliente selecionado'}
+                  </div>
+                </div>
+                <button onClick={() => setSelectedCustomer(null)} className="text-error hover:text-error/80 text-xl">✕</button>
+              </div>
+            )}
+          </div>
+
+          {/* Vincular a Ordem de Serviço */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Vincular a Ordem de Serviço (opcional)
+            </label>
+            <Input
+              placeholder="Buscar OS por número, título ou cliente..."
+              value={orderSearch}
+              onChange={(e) => setOrderSearch(e.target.value)}
+            />
+            {orderSearch && filteredServiceOrders.length > 0 && (
+              <div className="max-h-32 overflow-y-auto border border-border rounded-lg mt-2 bg-level-2">
+                {filteredServiceOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    onClick={() => {
+                      setSelectedServiceOrder(order);
+                      setOrderSearch('');
+                      // Selecionar cliente da OS automaticamente
+                      const orderCustomer = customers.find(c => c.id === order.customerId);
+                      if (orderCustomer && !selectedCustomer) {
+                        setSelectedCustomer(orderCustomer);
+                      }
+                    }}
+                    className="p-2 hover:bg-level-3 cursor-pointer border-b border-border last:border-b-0"
+                  >
+                    <div className="font-medium">{order.orderNumber}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {order.title} • {order.customerName}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {orderSearch && filteredServiceOrders.length === 0 && (
+              <div className="mt-2 p-3 text-center text-muted-foreground border border-border rounded-lg bg-level-2">
+                Nenhuma OS encontrada
+              </div>
+            )}
+            {selectedServiceOrder && (
+              <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex justify-between items-center">
+                <div>
+                  <div className="font-medium text-foreground">{selectedServiceOrder.orderNumber}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {selectedServiceOrder.title} • {selectedServiceOrder.customerName}
+                  </div>
+                </div>
+                <button onClick={() => setSelectedServiceOrder(null)} className="text-error hover:text-error/80 text-xl">✕</button>
               </div>
             )}
           </div>

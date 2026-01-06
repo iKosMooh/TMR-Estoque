@@ -50,7 +50,7 @@ export async function PUT(
       notes 
     } = body;
 
-    const now = new Date();
+    const now = new Date().toISOString();
 
     // Buscar transação atual para calcular diferença
     const [currentTransaction] = await db
@@ -69,7 +69,7 @@ export async function PUT(
         newStatus = 'paid';
       } else if (paidAmount && parseFloat(paidAmount) > 0) {
         newStatus = 'partially_paid';
-      } else if (new Date(dueDate) < now) {
+      } else if (new Date(dueDate) < new Date(now)) {
         newStatus = 'overdue';
       } else {
         newStatus = 'pending';
@@ -86,8 +86,8 @@ export async function PUT(
         categoryId: categoryId || null,
         customerId: customerId || null,
         supplierId: supplierId || null,
-        dueDate: new Date(dueDate),
-        paymentDate: paymentDate ? new Date(paymentDate) : null,
+        dueDate: new Date(dueDate).toISOString(),
+        paymentDate: paymentDate ? new Date(paymentDate).toISOString() : null,
         status: newStatus,
         paidAmount: paidAmount ? paidAmount.toString() : '0',
         paymentMethod: paymentMethod || null,
@@ -128,14 +128,14 @@ export async function DELETE(
         .update(bankAccounts)
         .set({
           balance: sql`${bankAccounts.balance} + ${multiplier * parseFloat(transaction.paidAmount || '0')}`,
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
         })
         .where(eq(bankAccounts.id, transaction.bankAccountId));
     }
 
     await db
       .update(financialTransactions)
-      .set({ status: 'cancelled', updatedAt: new Date() })
+      .set({ status: 'cancelled', updatedAt: new Date().toISOString() })
       .where(eq(financialTransactions.id, id));
 
     return NextResponse.json({ success: true });

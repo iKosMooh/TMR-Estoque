@@ -232,6 +232,7 @@ th {
 .border-muted { border-color: var(--border) !important; }
 
 /* Níveis de fundo (facilitam camadas) */
+.card-bg{ background-color: #d5d5d5 !important; }
 .bg-level-0 { background-color: var(--bg) !important; }
 .bg-level-1 { background-color: var(--card-bg) !important; }
 .bg-level-2 { background-color: rgba(0,0,0,0.03) !important; } /* exemplo sutil */

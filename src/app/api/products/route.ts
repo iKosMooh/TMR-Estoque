@@ -10,17 +10,17 @@ export async function GET() {
     const productsWithBatches = await Promise.all(
       productList.map(async (p) => {
         const batches = await db.select().from(productBatches).where(eq(productBatches.productId, p.id));
-        const totalQuantity = batches.length > 0 ? batches.reduce((sum, b) => sum + b.quantityRemaining, 0) : p.currentQuantity;
+        const totalQuantity = batches.length > 0 ? batches.reduce((sum, b) => sum + b.quantityRemaining, 0) : p.qtdAtual;
         
         // Calcular o maior preço de venda entre os lotes
-        let maxSellingPrice = parseFloat(p.salePrice || '0');
+        let maxSellingPrice = parseFloat(p.precoVenda || '0');
         if (batches.length > 0) {
           const batchPrices = batches.map(b => parseFloat(b.sellingPrice || '0'));
           maxSellingPrice = Math.max(...batchPrices, maxSellingPrice);
         }
         
         // Calcular o menor preço de custo entre os lotes
-        let minCostPrice = parseFloat(p.costPrice || '0');
+        let minCostPrice = parseFloat(p.precoCusto || '0');
         if (batches.length > 0) {
           const batchCosts = batches.map(b => parseFloat(b.costPrice || '0'));
           minCostPrice = Math.min(...batchCosts.filter(c => c > 0), minCostPrice);
@@ -28,21 +28,21 @@ export async function GET() {
         
         return {
           id: p.id,
-          internalCode: p.internalCode,
+          internalCode: p.codigoInterno,
           barcode: p.barcode,
           name: p.name,
           description: p.description,
           salePrice: maxSellingPrice.toFixed(2), // Maior preço de venda dos lotes
           costPrice: minCostPrice.toFixed(2), // Menor preço de custo dos lotes
           currentQuantity: totalQuantity,
-          totalEntry: p.totalEntry,
-          totalExit: p.totalExit,
-          lastPurchaseDate: p.lastPurchaseDate ? p.lastPurchaseDate.toISOString().split('T')[0] : null,
+          totalEntry: p.qtdEntradaTotal,
+          totalExit: p.qtdSaidaTotal,
+          lastPurchaseDate: p.dataUltimaCompra || null,
           ncm: p.ncm,
-          lowStockThreshold: p.lowStockThreshold,
+          lowStockThreshold: p.estoqueBaixoLimite,
           batches: batches.map(b => ({
             id: b.id,
-            purchaseDate: b.purchaseDate.toISOString().split('T')[0],
+            purchaseDate: b.purchaseDate || null, // Já vem como string YYYY-MM-DD
             costPrice: b.costPrice,
             sellingPrice: b.sellingPrice,
             quantityReceived: b.quantityReceived,
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verifique se produto existe
-    const existing = await db.select().from(products).where(eq(products.internalCode, internalCode));
+    const existing = await db.select().from(products).where(eq(products.codigoInterno, internalCode));
     
     // Se checkOnly=true, apenas verificar se existe
     if (checkOnly) {
@@ -108,8 +108,8 @@ export async function POST(request: NextRequest) {
             product: {
               id: existing[0].id,
               name: existing[0].name,
-              internalCode: existing[0].internalCode,
-              currentQuantity: existing[0].currentQuantity
+            internalCode: existing[0].codigoInterno,
+            currentQuantity: existing[0].qtdAtual
             }
           },
           { status: 200 }
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       await db.insert(productBatches).values({
         id: crypto.randomUUID(),
         productId,
-        purchaseDate: new Date(),
+        purchaseDate: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
         costPrice: costPrice,
         sellingPrice: salePrice,
         quantityReceived: currentQuantity || 0,
@@ -135,8 +135,8 @@ export async function POST(request: NextRequest) {
       });
       // Atualize totalEntry
       await db.update(products).set({
-        totalEntry: existing[0].totalEntry + (currentQuantity || 0),
-        lastPurchaseDate: new Date(),
+        qtdEntradaTotal: existing[0].qtdEntradaTotal + (currentQuantity || 0),
+        dataUltimaCompra: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
       }).where(eq(products.id, productId));
       return NextResponse.json({ 
         message: 'Lote adicionado ao produto existente',
@@ -148,18 +148,18 @@ export async function POST(request: NextRequest) {
       const productId = crypto.randomUUID();
       await db.insert(products).values({
         id: productId,
-        internalCode,
+        codigoInterno: internalCode,
         barcode: barcode || null,
         name,
         description: description || null,
-        salePrice: salePrice,
-        costPrice: costPrice,
-        currentQuantity: currentQuantity || 0,
-        totalEntry: currentQuantity || 0,
-        totalExit: 0,
-        lastPurchaseDate: new Date(),
+        precoVenda: salePrice,
+        precoCusto: costPrice,
+        qtdAtual: currentQuantity || 0,
+        qtdEntradaTotal: currentQuantity || 0,
+        qtdSaidaTotal: 0,
+        dataUltimaCompra: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
         ncm: null,
-        lowStockThreshold: lowStockThreshold || 5,
+        estoqueBaixoLimite: lowStockThreshold || 5,
         // Campos de e-commerce
         sku: sku || null,
         weight: weight || null,
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
       await db.insert(productBatches).values({
         id: crypto.randomUUID(),
         productId,
-        purchaseDate: new Date(),
+        purchaseDate: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
         costPrice: costPrice,
         sellingPrice: salePrice,
         quantityReceived: currentQuantity || 0,
@@ -216,20 +216,20 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verificar se código interno já existe em outro produto
-    const duplicate = await db.select().from(products).where(eq(products.internalCode, internalCode));
+    const duplicate = await db.select().from(products).where(eq(products.codigoInterno, internalCode));
     if (duplicate.length > 0 && duplicate[0].id !== id) {
       return NextResponse.json({ error: 'Código interno já existe em outro produto' }, { status: 400 });
     }
 
     const updates: Record<string, unknown> = {
-      internalCode,
+      codigoInterno: internalCode,
       barcode: barcode || null,
       name,
       description: description || null,
-      salePrice: salePrice,
-      costPrice: costPrice,
-      currentQuantity: currentQuantity !== undefined ? currentQuantity : existingProduct[0].currentQuantity,
-      lowStockThreshold: lowStockThreshold || 5,
+      precoVenda: salePrice,
+      precoCusto: costPrice,
+      qtdAtual: currentQuantity !== undefined ? currentQuantity : existingProduct[0].qtdAtual,
+      estoqueBaixoLimite: lowStockThreshold || 5,
       // Campos de e-commerce
       sku: sku || null,
       weight: weight || null,
@@ -252,18 +252,18 @@ export async function PUT(request: NextRequest) {
     // Retorna com preços como string
     return NextResponse.json({
       id: p.id,
-      internalCode: p.internalCode,
+      internalCode: p.codigoInterno,
       barcode: p.barcode,
       name: p.name,
       description: p.description,
-      salePrice: p.salePrice,
-      costPrice: p.costPrice,
-      currentQuantity: p.currentQuantity,
-      totalEntry: p.totalEntry,
-      totalExit: p.totalExit,
-      lastPurchaseDate: p.lastPurchaseDate ? p.lastPurchaseDate.toISOString().split('T')[0] : null,
+      salePrice: p.precoVenda,
+      costPrice: p.precoCusto,
+      currentQuantity: p.qtdAtual,
+      totalEntry: p.qtdEntradaTotal,
+      totalExit: p.qtdSaidaTotal,
+      lastPurchaseDate: p.dataUltimaCompra || null,
       ncm: p.ncm,
-      lowStockThreshold: p.lowStockThreshold,
+      lowStockThreshold: p.estoqueBaixoLimite,
     });
   } catch (error) {
     console.error('Erro ao atualizar produto:', error);
@@ -287,7 +287,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Produto não encontrado' });
     }
 
-    const hasMovements = product[0].totalEntry > 0 || product[0].totalExit > 0;
+    const hasMovements = product[0].qtdEntradaTotal > 0 || product[0].qtdSaidaTotal > 0;
 
     if (hasMovements && !force) {
       return NextResponse.json({ success: false, canForce: true, message: 'Produto possui movimentações. Use force=true para excluir.' });

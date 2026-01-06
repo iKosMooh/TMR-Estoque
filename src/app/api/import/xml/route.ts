@@ -164,8 +164,8 @@ export async function POST(request: NextRequest) {
           await db
             .update(products)
             .set({
-              totalEntry: product.totalEntry + productData.quantity,
-              currentQuantity: product.currentQuantity + productData.quantity,
+              totalEntry: (product.totalEntry || 0) + productData.quantity,
+              currentQuantity: (product.currentQuantity || 0) + productData.quantity,
               costPrice: productData.salePrice.toString(),
               lastPurchaseDate: new Date(),
               ncm: productData.ncm || product.ncm,

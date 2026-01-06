@@ -28,11 +28,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (startDate) {
-      conditions.push(gte(financialTransactions.dueDate, new Date(startDate)));
+      conditions.push(gte(financialTransactions.dueDate, new Date(startDate).toISOString()));
     }
 
     if (endDate) {
-      conditions.push(lte(financialTransactions.dueDate, new Date(endDate)));
+      conditions.push(lte(financialTransactions.dueDate, new Date(endDate).toISOString()));
     }
 
     const transactions = await db
@@ -100,13 +100,13 @@ export async function POST(request: NextRequest) {
     }
 
     const id = uuidv4();
-    const now = new Date();
+    const now = new Date().toISOString();
     
     // Determinar status inicial
     let status: 'pending' | 'paid' | 'overdue' = 'pending';
     if (paymentDate) {
       status = 'paid';
-    } else if (new Date(dueDate) < now) {
+    } else if (new Date(dueDate) < new Date(now)) {
       status = 'overdue';
     }
 
@@ -119,8 +119,8 @@ export async function POST(request: NextRequest) {
       categoryId: categoryId || null,
       customerId: customerId || null,
       supplierId: supplierId || null,
-      dueDate: new Date(dueDate),
-      paymentDate: paymentDate ? new Date(paymentDate) : null,
+      dueDate: new Date(dueDate).toISOString(),
+      paymentDate: paymentDate ? new Date(paymentDate).toISOString() : null,
       status,
       paidAmount: paymentDate ? amount.toString() : '0',
       paymentMethod: paymentMethod || null,

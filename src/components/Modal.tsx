@@ -8,9 +8,10 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', className = '' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,12 +49,12 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
-        className={`w-full ${sizeClasses[size]} bg-card border border-border rounded-xl shadow-2xl transform transition-all max-h-[90vh] overflow-hidden`}
+        className={`w-full ${sizeClasses[size]} card-bg border border-border rounded-xl shadow-2xl transform transition-all max-h-[90vh] overflow-hidden ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"

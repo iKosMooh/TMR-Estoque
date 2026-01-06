@@ -61,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Esta sessão já está fechada' }, { status: 400 });
     }
 
-    const now = new Date();
+    const now = new Date().toISOString();
     const totalSales = 
       parseFloat(session[0].cashSales || '0') + 
       parseFloat(session[0].cardSales || '0') + 
@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({
       message: 'Caixa fechado com sucesso',
-      closedAt: now.toISOString(),
+      closedAt: now,
       totalSales,
     });
   } catch (error) {
