@@ -11,6 +11,7 @@ interface Product {
   name: string;
   salePrice: string;
   costPrice: string;
+  currentQuantity: number;
 }
 
 // Constantes de folha A4 (em mm)
@@ -206,10 +207,11 @@ export default function EtiquetasPage() {
         if (selectedProducts.length > 0) {
           const newLabelItems = selectedProducts.map(product => ({
             product,
-            quantity: 1,
+            quantity: Math.max(1, product.currentQuantity), // Usar quantidade em estoque, mínimo 1
           }));
           setLabelItems(newLabelItems);
-          toast.success(`${selectedProducts.length} produto(s) adicionado(s) do estoque`);
+          const totalLabels = newLabelItems.reduce((sum, item) => sum + item.quantity, 0);
+          toast.success(`${selectedProducts.length} produto(s) adicionado(s) - ${totalLabels} etiqueta(s) gerada(s)`);
         }
         
         // Limpar localStorage após carregar
@@ -995,9 +997,14 @@ export default function EtiquetasPage() {
                         <input
                           type="number"
                           value={item.quantity}
-                          onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 0)}
+                          onChange={(e) => {
+                            const newValue = parseInt(e.target.value) || 1;
+                            if (newValue > 0) {
+                              updateQuantity(item.product.id, newValue);
+                            }
+                          }}
                           className="w-16 text-center border border-border rounded py-1 bg-background text-foreground"
-                          min="0"
+                          min="1"
                         />
                         <button
                           onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
