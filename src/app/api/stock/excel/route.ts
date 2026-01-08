@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Processar aba de produtos
-    const productsSheetName = workbook.SheetNames.find(name => 
+    const productsSheetName = workbook.SheetNames.find((name: string) => 
       name.toLowerCase().includes('produto')
     ) || workbook.SheetNames[0];
     
