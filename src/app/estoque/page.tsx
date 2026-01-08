@@ -198,7 +198,9 @@ export default function Estoque() {
     unitsPerPackage?: number;
     sellByUnit?: boolean;
     unitPrice?: number;
+    name?: string;
   }}>({});
+  const [nameExistsCheck, setNameExistsCheck] = useState<{[key: number]: boolean}>({});
   // Estados para multiseleção
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
@@ -484,6 +486,37 @@ export default function Estoque() {
       ...prev,
       [index]: { ...prev[index], unitPrice: numValue }
     }));
+  };
+
+  const handleImportNameChange = async (index: number, value: string) => {
+    setEditedImportItems(prev => ({
+      ...prev,
+      [index]: { ...prev[index], name: value }
+    }));
+
+    // Verificar se o nome já existe (exceto se for o produto existente atual)
+    const item = importPreview?.previewItems[index];
+    const excludeId = item?.existing?.id;
+    const exists = await checkNameExists(value, excludeId);
+    setNameExistsCheck(prev => ({
+      ...prev,
+      [index]: exists
+    }));
+  };
+
+  // Função para verificar se um nome já existe no estoque (excluindo o produto atual se for edição)
+  const checkNameExists = async (name: string, excludeProductId?: string) => {
+    if (!name.trim()) return false;
+    try {
+      const response = await fetch(`/api/products?name=${encodeURIComponent(name)}`);
+      if (response.ok) {
+        const products = await response.json();
+        return products.some((p: any) => p.name.toLowerCase() === name.toLowerCase() && p.id !== excludeProductId);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar nome:', error);
+    }
+    return false;
   };
 
   useEffect(() => {
@@ -864,6 +897,7 @@ export default function Estoque() {
       const data: PreviewResult = await response.json();
       setImportPreview(data);
       setEditedImportItems({}); // Resetar edições para nova prévia
+      setNameExistsCheck({}); // Resetar verificações de nome
     } catch (error) {
       console.error('Erro ao gerar prévia:', error);
       toast.error('Erro ao gerar prévia');
@@ -889,6 +923,7 @@ export default function Estoque() {
             
             return {
               ...item,
+              name: editedImportItems[index]?.name ?? item.name,
               salePrice: getEditedImportPrice(index, item.salePrice),
               costPrice: editedImportItems[index]?.costPrice ?? item.costPrice ?? item.salePrice,
               quantity: getEditedImportQuantity(index, item.quantity),
@@ -945,6 +980,7 @@ export default function Estoque() {
     setEditedImportItems({});
     setGlobalMarkup('');
     setDuplicateAction({});
+    setNameExistsCheck({});
   };
 
   const handleImportPriceChange = (index: number, value: string) => {
@@ -1869,6 +1905,7 @@ export default function Estoque() {
                           // Puxar unitsPerPackage e sellByUnit do produto existente se houver
                           const unitsPerPackage = editedImportItems[index]?.unitsPerPackage ?? item.existing?.unitsPerPackage ?? 1;
                           const sellByUnit = editedImportItems[index]?.sellByUnit ?? item.existing?.sellByUnit ?? false;
+                          const editedName = editedImportItems[index]?.name ?? item.name;
                           const action = duplicateAction[index] ?? (item.existing ? 'addBatch' : 'createNew');
                           const isExisting = !!item.existing;
                           
@@ -1891,11 +1928,34 @@ export default function Estoque() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-2 py-2 text-card-foreground text-xs max-w-[120px]" title={item.name}>
-                              <span className="truncate block">{item.name}</span>
-                              {isExisting && item.existing?.name !== item.name && (
+                            <td className="px-2 py-2 text-card-foreground text-xs max-w-[120px]">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={editedName}
+                                  onChange={(e) => handleImportNameChange(index, e.target.value)}
+                                  className={`w-full px-1 py-1 border rounded text-xs text-card-foreground focus:ring-1 focus:ring-ring ${
+                                    nameExistsCheck[index] 
+                                      ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30' 
+                                      : isExisting 
+                                        ? 'border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/30' 
+                                        : 'border-input bg-background'
+                                  }`}
+                                  placeholder="Nome do produto"
+                                  title={editedName}
+                                />
+                                {nameExistsCheck[index] && (
+                                  <span className="absolute right-1 top-1 text-red-500 text-xs">⚠️</span>
+                                )}
+                              </div>
+                              {isExisting && item.existing?.name !== editedName && (
                                 <span className="text-[10px] text-orange-600 dark:text-orange-400 truncate block" title={`Existente: ${item.existing?.name}`}>
                                   → {item.existing?.name?.substring(0, 20)}...
+                                </span>
+                              )}
+                              {nameExistsCheck[index] && (
+                                <span className="text-[10px] text-red-600 dark:text-red-400 truncate block">
+                                  Nome já existe no estoque
                                 </span>
                               )}
                             </td>
