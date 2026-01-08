@@ -78,11 +78,24 @@ export default function Vendas() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
   const [discount, setDiscount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit_card' | 'debit_card' | 'pix' | 'boleto'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit_card' | 'debit_card' | 'pix' | 'boleto' | 'credit_store'>('cash');
   const [addWarranty, setAddWarranty] = useState(false);
   const [warrantyMonths, setWarrantyMonths] = useState(3);
   const [warrantyPrice, setWarrantyPrice] = useState(0);
   const [notes, setNotes] = useState('');
+  // Estados para crediário/fiado
+  const [creditDueDate, setCreditDueDate] = useState('');
+  
+  // Estados para criar cliente
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({
+    type: 'pf' as 'pf' | 'pj',
+    name: '',
+    cpfCnpj: '',
+    phone: '',
+    email: '',
+  });
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
   
   // Estados para mão de obra
   const [showLaborModal, setShowLaborModal] = useState(false);
@@ -158,6 +171,66 @@ export default function Vendas() {
       }
     } catch (error) {
       console.error('Erro ao buscar clientes:', error);
+    }
+  };
+
+  // Função para criar novo cliente
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newCustomerData.name.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+
+    // Verificar se cliente já existe com mesmo CPF/CNPJ
+    if (newCustomerData.cpfCnpj) {
+      const existingCustomer = customers.find(c => 
+        c.cpfCnpj && c.cpfCnpj.replace(/\D/g, '') === newCustomerData.cpfCnpj.replace(/\D/g, '')
+      );
+      if (existingCustomer) {
+        toast.error(`Cliente já existe: ${existingCustomer.name}`);
+        return;
+      }
+    }
+
+    setCreatingCustomer(true);
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCustomerData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success('Cliente criado com sucesso!');
+        
+        // Recarregar clientes e selecionar o novo
+        await fetchCustomers();
+        
+        // Buscar o cliente criado e selecionar
+        const newCustomer: Customer = {
+          id: result.id,
+          name: newCustomerData.name,
+          cpfCnpj: newCustomerData.cpfCnpj || null,
+          phone: newCustomerData.phone || null,
+          email: newCustomerData.email || null,
+        };
+        setSelectedCustomer(newCustomer);
+        
+        // Limpar form e fechar modal
+        setNewCustomerData({ type: 'pf', name: '', cpfCnpj: '', phone: '', email: '' });
+        setShowNewCustomerModal(false);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Erro ao criar cliente');
+      }
+    } catch (error) {
+      console.error('Erro ao criar cliente:', error);
+      toast.error('Erro ao criar cliente');
+    } finally {
+      setCreatingCustomer(false);
     }
   };
 
@@ -297,6 +370,18 @@ export default function Vendas() {
   const processSale = async () => {
     if (saleItems.length === 0) return;
 
+    // Verificar se crediário requer cliente
+    if (paymentMethod === 'credit_store' && !selectedCustomer) {
+      toast.error('Para vendas no crediário/fiado é obrigatório selecionar um cliente');
+      return;
+    }
+
+    // Verificar data de vencimento para crediário
+    if (paymentMethod === 'credit_store' && !creditDueDate) {
+      toast.error('Informe a data de vencimento do crediário');
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const productItems = saleItems.filter(i => i.type === 'product');
@@ -367,6 +452,7 @@ export default function Vendas() {
       debit_card: 'Cartão de Débito',
       pix: 'PIX',
       boleto: 'Boleto',
+      credit_store: 'Crediário/Fiado',
     };
     return labels[method] || method;
   };
@@ -736,9 +822,18 @@ export default function Vendas() {
         <div className="space-y-6">
           {/* Selecionar Cliente */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Cliente (opcional)
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-foreground">
+                Cliente (opcional)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowNewCustomerModal(true)}
+                className="text-sm text-primary hover:text-primary/80 font-medium flex items-center gap-1"
+              >
+                <span className="text-lg">+</span> Novo Cliente
+              </button>
+            </div>
             <Input
               placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
               value={customerSearch}
@@ -879,13 +974,14 @@ export default function Vendas() {
           {/* Forma de Pagamento */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">Forma de Pagamento</label>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {[
                 { value: 'cash', label: 'Dinheiro', icon: '💵' },
                 { value: 'credit_card', label: 'Crédito', icon: '💳' },
                 { value: 'debit_card', label: 'Débito', icon: '💳' },
                 { value: 'pix', label: 'PIX', icon: '📱' },
                 { value: 'boleto', label: 'Boleto', icon: '📄' },
+                { value: 'credit_store', label: 'Crediário', icon: '📋' },
               ].map((method) => (
                 <button
                   key={method.value}
@@ -903,6 +999,34 @@ export default function Vendas() {
               ))}
             </div>
           </div>
+
+          {/* Campos específicos para Crediário */}
+          {paymentMethod === 'credit_store' && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 rounded-lg space-y-3">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                <span className="text-lg">📋</span>
+                <span className="font-medium">Venda no Crediário/Fiado</span>
+              </div>
+              {!selectedCustomer && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  ⚠️ Cliente obrigatório para vendas no crediário
+                </p>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">
+                  Data de Vencimento
+                </label>
+                <input
+                  type="date"
+                  value={creditDueDate}
+                  onChange={(e) => setCreditDueDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-300 dark:border-amber-700 rounded-lg bg-white dark:bg-amber-900/30 text-foreground"
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                />
+              </div>
+            </div>
+          )}
 
           {/* Observações */}
           <div>
@@ -991,6 +1115,116 @@ export default function Vendas() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal de Novo Cliente */}
+      <Modal
+        isOpen={showNewCustomerModal}
+        onClose={() => {
+          setShowNewCustomerModal(false);
+          setNewCustomerData({ type: 'pf', name: '', cpfCnpj: '', phone: '', email: '' });
+        }}
+        title="Cadastrar Novo Cliente"
+        size="md"
+      >
+        <div className="space-y-4">
+          {/* Tipo de Cliente */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Tipo de Cliente
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={newCustomerData.type === 'pf'}
+                  onChange={() => setNewCustomerData(prev => ({ ...prev, type: 'pf' }))}
+                  className="w-4 h-4"
+                />
+                <span>Pessoa Física</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={newCustomerData.type === 'pj'}
+                  onChange={() => setNewCustomerData(prev => ({ ...prev, type: 'pj' }))}
+                  className="w-4 h-4"
+                />
+                <span>Pessoa Jurídica</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Nome */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              {newCustomerData.type === 'pf' ? 'Nome Completo' : 'Razão Social'} *
+            </label>
+            <Input
+              placeholder={newCustomerData.type === 'pf' ? 'Nome do cliente' : 'Razão social da empresa'}
+              value={newCustomerData.name}
+              onChange={(e) => setNewCustomerData(prev => ({ ...prev, name: e.target.value }))}
+            />
+          </div>
+
+          {/* CPF/CNPJ */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              {newCustomerData.type === 'pf' ? 'CPF' : 'CNPJ'}
+            </label>
+            <Input
+              placeholder={newCustomerData.type === 'pf' ? '000.000.000-00' : '00.000.000/0000-00'}
+              value={newCustomerData.cpfCnpj}
+              onChange={(e) => setNewCustomerData(prev => ({ ...prev, cpfCnpj: e.target.value }))}
+            />
+          </div>
+
+          {/* Telefone */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Telefone
+            </label>
+            <Input
+              placeholder="(00) 00000-0000"
+              value={newCustomerData.phone}
+              onChange={(e) => setNewCustomerData(prev => ({ ...prev, phone: e.target.value }))}
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              E-mail
+            </label>
+            <Input
+              type="email"
+              placeholder="email@exemplo.com"
+              value={newCustomerData.email}
+              onChange={(e) => setNewCustomerData(prev => ({ ...prev, email: e.target.value }))}
+            />
+          </div>
+
+          {/* Botões */}
+          <div className="flex gap-3 pt-4">
+            <Button 
+              variant="secondary" 
+              onClick={() => {
+                setShowNewCustomerModal(false);
+                setNewCustomerData({ type: 'pf', name: '', cpfCnpj: '', phone: '', email: '' });
+              }} 
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateCustomer} 
+              disabled={!newCustomerData.name.trim()}
+              className="flex-1"
+            >
+              Cadastrar Cliente
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

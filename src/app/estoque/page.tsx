@@ -240,7 +240,11 @@ export default function Estoque() {
   const [globalMarkup, setGlobalMarkup] = useState<string>('');
   // Estado para margem de lucro no modal de edição
   const [editMarkupPercentage, setEditMarkupPercentage] = useState<string>('');
-
+  // Estados para Excel
+  const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [importingExcel, setImportingExcel] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   // Funções para calcular preço de venda com base no custo e margem
   const calculateSalePriceFromMarkup = (costPrice: string, markup: string): string => {
     const cost = parseFloat(costPrice) || 0;
@@ -328,6 +332,63 @@ export default function Estoque() {
     const newSalePrice = calculateSalePriceFromMarkup(formData.costPrice, value);
     if (newSalePrice) {
       setFormData({ ...formData, salePrice: newSalePrice });
+    }
+  };
+
+  // Funções para Excel
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
+    try {
+      const response = await fetch('/api/stock/excel');
+      if (!response.ok) {
+        throw new Error('Erro ao exportar');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `estoque_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Estoque exportado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao exportar:', error);
+      toast.error('Erro ao exportar estoque');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  const handleImportExcel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!excelFile) return;
+
+    setImportingExcel(true);
+    const formDataExcel = new FormData();
+    formDataExcel.append('file', excelFile);
+
+    try {
+      const response = await fetch('/api/stock/excel', {
+        method: 'POST',
+        body: formDataExcel,
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        toast.success(result.message);
+        setShowExcelImportModal(false);
+        setExcelFile(null);
+        fetchProducts();
+      } else {
+        toast.error(result.error || 'Erro ao importar');
+      }
+    } catch (error) {
+      console.error('Erro ao importar:', error);
+      toast.error('Erro ao importar estoque');
+    } finally {
+      setImportingExcel(false);
     }
   };
 
@@ -1031,6 +1092,21 @@ export default function Estoque() {
                 aria-label="Importar arquivo XML de nota fiscal"
               >
                 📄 Importar XML
+              </button>
+              <button
+                onClick={handleExportExcel}
+                disabled={exportingExcel}
+                className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-green-600 to-lime-600 hover:from-green-500 hover:to-lime-500 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 disabled:opacity-50"
+                aria-label="Exportar estoque para Excel"
+              >
+                {exportingExcel ? '⏳ Exportando...' : '📊 Exportar Excel'}
+              </button>
+              <button
+                onClick={() => setShowExcelImportModal(true)}
+                className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+                aria-label="Importar estoque de Excel"
+              >
+                📥 Importar Excel
               </button>
               <button
                 onClick={() => setShowAddProductModal(true)}
@@ -2815,6 +2891,71 @@ export default function Estoque() {
                     className="px-6 py-2.5 text-white font-semibold rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-600 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
                   >
                     💾 Atualizar Lote
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Importação Excel */}
+      {showExcelImportModal && (
+        <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-lg shadow-lg rounded-lg bg-card">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-card-foreground">Importar Estoque do Excel</h3>
+                <button
+                  onClick={() => {
+                    setShowExcelImportModal(false);
+                    setExcelFile(null);
+                  }}
+                  className="text-card-foreground hover:text-muted-foreground"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg mb-4">
+                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">📋 Instruções</h4>
+                <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Use o mesmo formato exportado pelo sistema</li>
+                  <li>• O arquivo deve ter colunas: Código Interno, Nome, Preço de Custo, Preço de Venda, etc.</li>
+                  <li>• Produtos existentes serão atualizados, novos serão criados</li>
+                </ul>
+              </div>
+
+              <form onSubmit={handleImportExcel} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-card-foreground mb-2">
+                    Selecione o arquivo Excel (.xlsx)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={(e) => setExcelFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-card-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    required
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExcelImportModal(false);
+                      setExcelFile(null);
+                    }}
+                    className="px-4 py-2 border border-border rounded-md text-card-foreground hover:bg-accent"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!excelFile || importingExcel}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {importingExcel ? 'Importando...' : 'Importar'}
                   </button>
                 </div>
               </form>
