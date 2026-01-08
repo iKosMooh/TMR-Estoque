@@ -31,6 +31,11 @@ interface ExistingProduct {
   currentQuantity: number;
   internalCode: string;
   matchType: 'xmlCode' | 'barcode' | 'internalCode' | 'name';
+  sellByUnit: boolean;
+  unitsPerPackage: number;
+  salePrice: number;
+  costPrice: number;
+  barcode: string | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -70,12 +75,18 @@ export async function POST(request: NextRequest) {
         // 1. Buscar por código XML
         const byXmlCode = await db.select().from(products).where(eq(products.xmlCode, xmlCode)).limit(1);
         if (byXmlCode.length > 0) {
+          const p = byXmlCode[0];
           existing = {
-            id: byXmlCode[0].id,
-            name: byXmlCode[0].name,
-            currentQuantity: byXmlCode[0].qtdAtual,
-            internalCode: byXmlCode[0].codigoInterno,
-            matchType: 'xmlCode'
+            id: p.id,
+            name: p.name,
+            currentQuantity: p.qtdAtual,
+            internalCode: p.codigoInterno,
+            matchType: 'xmlCode',
+            sellByUnit: p.sellByUnit === 1,
+            unitsPerPackage: p.unitsPerPackage || 1,
+            salePrice: parseFloat(p.precoVenda || '0'),
+            costPrice: parseFloat(p.precoCusto || '0'),
+            barcode: p.barcode,
           };
           matchType = 'xmlCode';
         }
@@ -84,12 +95,18 @@ export async function POST(request: NextRequest) {
         if (!existing && barcode && barcode !== 'SEM GTIN' && barcode.length > 3) {
           const byBarcode = await db.select().from(products).where(eq(products.barcode, barcode)).limit(1);
           if (byBarcode.length > 0) {
+            const p = byBarcode[0];
             existing = {
-              id: byBarcode[0].id,
-              name: byBarcode[0].name,
-              currentQuantity: byBarcode[0].qtdAtual,
-              internalCode: byBarcode[0].codigoInterno,
-              matchType: 'barcode'
+              id: p.id,
+              name: p.name,
+              currentQuantity: p.qtdAtual,
+              internalCode: p.codigoInterno,
+              matchType: 'barcode',
+              sellByUnit: p.sellByUnit === 1,
+              unitsPerPackage: p.unitsPerPackage || 1,
+              salePrice: parseFloat(p.precoVenda || '0'),
+              costPrice: parseFloat(p.precoCusto || '0'),
+              barcode: p.barcode,
             };
             matchType = 'barcode';
           }
@@ -99,12 +116,18 @@ export async function POST(request: NextRequest) {
         if (!existing) {
           const byInternalCode = await db.select().from(products).where(eq(products.codigoInterno, xmlCode)).limit(1);
           if (byInternalCode.length > 0) {
+            const p = byInternalCode[0];
             existing = {
-              id: byInternalCode[0].id,
-              name: byInternalCode[0].name,
-              currentQuantity: byInternalCode[0].qtdAtual,
-              internalCode: byInternalCode[0].codigoInterno,
-              matchType: 'internalCode'
+              id: p.id,
+              name: p.name,
+              currentQuantity: p.qtdAtual,
+              internalCode: p.codigoInterno,
+              matchType: 'internalCode',
+              sellByUnit: p.sellByUnit === 1,
+              unitsPerPackage: p.unitsPerPackage || 1,
+              salePrice: parseFloat(p.precoVenda || '0'),
+              costPrice: parseFloat(p.precoCusto || '0'),
+              barcode: p.barcode,
             };
             matchType = 'internalCode';
           }
@@ -114,24 +137,36 @@ export async function POST(request: NextRequest) {
         if (!existing) {
           const byName = await db.select().from(products).where(eq(products.name, name)).limit(1);
           if (byName.length > 0) {
+            const p = byName[0];
             existing = {
-              id: byName[0].id,
-              name: byName[0].name,
-              currentQuantity: byName[0].qtdAtual,
-              internalCode: byName[0].codigoInterno,
-              matchType: 'name'
+              id: p.id,
+              name: p.name,
+              currentQuantity: p.qtdAtual,
+              internalCode: p.codigoInterno,
+              matchType: 'name',
+              sellByUnit: p.sellByUnit === 1,
+              unitsPerPackage: p.unitsPerPackage || 1,
+              salePrice: parseFloat(p.precoVenda || '0'),
+              costPrice: parseFloat(p.precoCusto || '0'),
+              barcode: p.barcode,
             };
             matchType = 'name';
           } else {
             // Busca parcial pelo nome
             const byNameLike = await db.select().from(products).where(like(products.name, `%${name}%`)).limit(1);
             if (byNameLike.length > 0) {
+              const p = byNameLike[0];
               existing = {
-                id: byNameLike[0].id,
-                name: byNameLike[0].name,
-                currentQuantity: byNameLike[0].qtdAtual,
-                internalCode: byNameLike[0].codigoInterno,
-                matchType: 'name'
+                id: p.id,
+                name: p.name,
+                currentQuantity: p.qtdAtual,
+                internalCode: p.codigoInterno,
+                matchType: 'name',
+                sellByUnit: p.sellByUnit === 1,
+                unitsPerPackage: p.unitsPerPackage || 1,
+                salePrice: parseFloat(p.precoVenda || '0'),
+                costPrice: parseFloat(p.precoCusto || '0'),
+                barcode: p.barcode,
               };
               matchType = 'name';
             }
@@ -162,7 +197,9 @@ export async function POST(request: NextRequest) {
             name: existing.name,
             currentQuantity: existing.currentQuantity,
             internalCode: existing.internalCode,
-            matchType: existing.matchType
+            matchType: existing.matchType,
+            sellByUnit: existing.sellByUnit,
+            unitsPerPackage: existing.unitsPerPackage,
           } : null,
           action,
           isDuplicate: !!existing,

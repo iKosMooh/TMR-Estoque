@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { salesOrders, salesOrderItems, products, productBatches, posSessions, movements, customers } from '@/lib/schema';
+import { salesOrders, salesOrderItems, products, productBatches, posSessions, movements, customers, serviceOrders } from '@/lib/schema';
 import { eq, desc, asc, sql } from 'drizzle-orm';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
@@ -27,7 +27,26 @@ export async function GET(request: NextRequest) {
       createdAt: salesOrders.createdAt,
       sellerName: salesOrders.sellerName,
       sellerSignature: salesOrders.sellerSignature,
-    }).from(salesOrders).leftJoin(customers, eq(salesOrders.customerId, customers.id));
+      // Campos de crediário
+      isCreditSale: salesOrders.isCreditSale,
+      creditDueDate: salesOrders.creditDueDate,
+      creditStatus: salesOrders.creditStatus,
+      // Vínculo com OS - campos individuais para depois construir o objeto
+      serviceOrderId: salesOrders.serviceOrderId,
+      serviceOrder_id: serviceOrders.id,
+      serviceOrder_orderNumber: serviceOrders.orderNumber,
+      serviceOrder_title: serviceOrders.title,
+      serviceOrder_status: serviceOrders.status,
+      serviceOrder_equipmentType: serviceOrders.equipmentType,
+      serviceOrder_equipmentBrand: serviceOrders.equipmentBrand,
+      serviceOrder_equipmentModel: serviceOrders.equipmentModel,
+      serviceOrder_reportedIssue: serviceOrders.reportedIssue,
+      serviceOrder_diagnosis: serviceOrders.diagnosis,
+      serviceOrder_solution: serviceOrders.solution,
+      serviceOrder_createdAt: serviceOrders.createdAt,
+    }).from(salesOrders)
+      .leftJoin(customers, eq(salesOrders.customerId, customers.id))
+      .leftJoin(serviceOrders, eq(salesOrders.serviceOrderId, serviceOrders.id));
     
     if (status) {
       query = query.where(eq(salesOrders.status, status as 'pending' | 'completed' | 'cancelled')) as typeof query;
@@ -37,7 +56,42 @@ export async function GET(request: NextRequest) {
       query = query.where(eq(salesOrders.posSessionId, sessionId)) as typeof query;
     }
     
-    const orders = await query.orderBy(desc(salesOrders.createdAt));
+    const rawOrders = await query.orderBy(desc(salesOrders.createdAt));
+    
+    // Transformar para incluir serviceOrder como objeto aninhado
+    const orders = rawOrders.map(order => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      customerId: order.customerId,
+      customerName: order.customerName,
+      customerCpfCnpj: order.customerCpfCnpj,
+      subtotal: order.subtotal,
+      discount: order.discount,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      status: order.status,
+      notes: order.notes,
+      createdAt: order.createdAt,
+      sellerName: order.sellerName,
+      sellerSignature: order.sellerSignature,
+      isCreditSale: order.isCreditSale,
+      creditDueDate: order.creditDueDate,
+      creditStatus: order.creditStatus,
+      serviceOrderId: order.serviceOrderId,
+      serviceOrder: order.serviceOrder_id ? {
+        id: order.serviceOrder_id,
+        orderNumber: order.serviceOrder_orderNumber,
+        title: order.serviceOrder_title,
+        status: order.serviceOrder_status,
+        deviceType: order.serviceOrder_equipmentType,
+        deviceBrand: order.serviceOrder_equipmentBrand,
+        deviceModel: order.serviceOrder_equipmentModel,
+        problemDescription: order.serviceOrder_reportedIssue,
+        diagnosis: order.serviceOrder_diagnosis,
+        solution: order.serviceOrder_solution,
+        createdAt: order.serviceOrder_createdAt,
+      } : null,
+    }));
     
     return NextResponse.json({ orders });
   } catch (error) {
@@ -421,5 +475,44 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Erro ao cancelar pedido:', error);
     return NextResponse.json({ error: 'Erro ao cancelar pedido' }, { status: 500 });
+  }
+}
+
+// PATCH - Atualizar status de pagamento (crediário)
+export async function PATCH(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('id');
+    
+    if (!orderId) {
+      return NextResponse.json({ error: 'ID do pedido é obrigatório' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { creditStatus } = body;
+
+    if (!creditStatus || !['pending', 'partial', 'paid'].includes(creditStatus)) {
+      return NextResponse.json({ error: 'Status de crédito inválido' }, { status: 400 });
+    }
+
+    // Verificar se pedido existe
+    const order = await db.select().from(salesOrders).where(eq(salesOrders.id, orderId));
+    if (order.length === 0) {
+      return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+    }
+
+    // Atualizar status de crédito
+    await db.update(salesOrders).set({
+      creditStatus: creditStatus as 'pending' | 'partial' | 'paid',
+      updatedAt: new Date().toISOString(),
+    }).where(eq(salesOrders.id, orderId));
+
+    return NextResponse.json({ 
+      success: true, 
+      message: `Status de pagamento atualizado para: ${creditStatus === 'paid' ? 'Pago' : creditStatus === 'partial' ? 'Parcial' : 'Pendente'}` 
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar status de pagamento:', error);
+    return NextResponse.json({ error: 'Erro ao atualizar status' }, { status: 500 });
   }
 }

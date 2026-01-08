@@ -24,6 +24,24 @@ interface Sale {
   customerName: string | null;
   sellerSignature: string | null;
   sellerName: string | null;
+  paymentMethod?: string;
+  isCreditSale?: number;
+  creditDueDate?: string | null;
+  creditStatus?: 'pending' | 'partial' | 'paid';
+  serviceOrderId?: string | null;
+  serviceOrder?: {
+    id: string;
+    orderNumber: string;
+    title: string;
+    status: string;
+    deviceType?: string | null;
+    deviceBrand?: string | null;
+    deviceModel?: string | null;
+    problemDescription?: string | null;
+    diagnosis?: string | null;
+    solution?: string | null;
+    createdAt?: string;
+  } | null;
 }
 
 interface SalesOrder {
@@ -42,6 +60,25 @@ interface SalesOrder {
   items?: SalesOrderItem[];
   sellerName?: string;
   sellerSignature?: string;
+  // Campos de crediário
+  isCreditSale?: number;
+  creditDueDate?: string | null;
+  creditStatus?: 'pending' | 'partial' | 'paid';
+  // Vínculo com OS
+  serviceOrderId?: string | null;
+  serviceOrder?: {
+    id: string;
+    orderNumber: string;
+    title: string;
+    status: string;
+    deviceType?: string | null;
+    deviceBrand?: string | null;
+    deviceModel?: string | null;
+    problemDescription?: string | null;
+    diagnosis?: string | null;
+    solution?: string | null;
+    createdAt?: string;
+  } | null;
 }
 
 interface SalesOrderItem {
@@ -69,6 +106,9 @@ export default function GerenciarVendas() {
   const [orderToCancel, setOrderToCancel] = useState<SalesOrder | null>(null);
   const [showCancelSaleModal, setShowCancelSaleModal] = useState(false);
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
+  const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<SalesOrder | null>(null);
+  const [updatingCreditStatus, setUpdatingCreditStatus] = useState(false);
   const [printSize, setPrintSize] = useState<'A4' | 'A5'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('printSize') as 'A4' | 'A5') || 'A5';
@@ -133,9 +173,94 @@ export default function GerenciarVendas() {
       debit_card: 'Cartão de Débito',
       pix: 'PIX',
       boleto: 'Boleto',
+      credit_store: 'Crediário/Fiado',
       other: 'Outro',
     };
     return labels[method] || method;
+  };
+
+  const getCreditStatusBadge = (status?: string) => {
+    if (!status) return null;
+    const styles: Record<string, string> = {
+      paid: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      partial: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      pending: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    };
+    const labels: Record<string, string> = {
+      paid: '✅ Pago',
+      partial: '⚠️ Parcial',
+      pending: '❌ Pendente',
+    };
+    return (
+      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
+        {labels[status] || status}
+      </span>
+    );
+  };
+
+  const updateCreditStatus = async (orderId: string, newStatus: 'pending' | 'partial' | 'paid') => {
+    setUpdatingCreditStatus(true);
+    try {
+      const response = await fetch(`/api/sales-orders?id=${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creditStatus: newStatus }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message);
+        // Atualizar a lista localmente
+        setSalesOrders(prev => prev.map(order => 
+          order.id === orderId ? { ...order, creditStatus: newStatus } : order
+        ));
+        // Atualizar o modal de detalhes se estiver aberto
+        if (orderDetails?.id === orderId) {
+          setOrderDetails(prev => prev ? { ...prev, creditStatus: newStatus } : null);
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Erro ao atualizar status');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status de pagamento');
+    } finally {
+      setUpdatingCreditStatus(false);
+    }
+  };
+
+  const updateSaleCreditStatus = async (saleId: string, newStatus: 'pending' | 'partial' | 'paid') => {
+    setUpdatingCreditStatus(true);
+    try {
+      const response = await fetch(`/api/sales?id=${saleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creditStatus: newStatus }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message);
+        // Atualizar a lista localmente
+        setSales(prev => prev.map(sale => 
+          sale.id === saleId ? { ...sale, creditStatus: newStatus } : sale
+        ));
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Erro ao atualizar status');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status de pagamento');
+    } finally {
+      setUpdatingCreditStatus(false);
+    }
+  };
+
+  const openOrderDetails = (order: SalesOrder) => {
+    setOrderDetails(order);
+    setShowOrderDetailsModal(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -604,6 +729,192 @@ export default function GerenciarVendas() {
     printDeclaration('sale', sale, printSize);
   };
 
+  const printServiceOrder = (serviceOrder: SalesOrder['serviceOrder']) => {
+    if (!serviceOrder) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a janela de impressão');
+      return;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>OS #${serviceOrder.orderNumber}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #333;
+          }
+          .header p {
+            margin: 5px 0 0;
+            color: #666;
+          }
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+          }
+          .info-box {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+          }
+          .info-box label {
+            font-size: 11px;
+            color: #666;
+            display: block;
+            margin-bottom: 3px;
+          }
+          .info-box span {
+            font-weight: bold;
+            font-size: 14px;
+          }
+          .section {
+            margin-bottom: 20px;
+          }
+          .section h3 {
+            font-size: 14px;
+            background: #f5f5f5;
+            padding: 8px;
+            margin: 0 0 10px;
+            border-left: 4px solid #333;
+          }
+          .section-content {
+            padding: 0 10px;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+          }
+          .status-open { background: #e3f2fd; color: #1976d2; }
+          .status-in_progress { background: #fff3e0; color: #f57c00; }
+          .status-completed { background: #e8f5e9; color: #388e3c; }
+          .status-cancelled { background: #ffebee; color: #d32f2f; }
+          .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 11px;
+            color: #999;
+            border-top: 1px dashed #ccc;
+            padding-top: 15px;
+          }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>ORDEM DE SERVIÇO</h1>
+          <p>Nº ${serviceOrder.orderNumber}</p>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-box">
+            <label>Status</label>
+            <span class="status-badge status-${serviceOrder.status}">
+              ${serviceOrder.status === 'open' ? '🔵 Aberta' : ''}
+              ${serviceOrder.status === 'in_progress' ? '🟡 Em Andamento' : ''}
+              ${serviceOrder.status === 'completed' ? '🟢 Concluída' : ''}
+              ${serviceOrder.status === 'cancelled' ? '🔴 Cancelada' : ''}
+            </span>
+          </div>
+          <div class="info-box">
+            <label>Data de Criação</label>
+            <span>${serviceOrder.createdAt ? new Date(serviceOrder.createdAt).toLocaleDateString('pt-BR') : '-'}</span>
+          </div>
+        </div>
+
+        ${serviceOrder.deviceType || serviceOrder.deviceBrand || serviceOrder.deviceModel ? `
+        <div class="section">
+          <h3>EQUIPAMENTO</h3>
+          <div class="section-content">
+            <div class="info-grid">
+              ${serviceOrder.deviceType ? `
+              <div class="info-box">
+                <label>Tipo</label>
+                <span>${serviceOrder.deviceType}</span>
+              </div>` : ''}
+              ${serviceOrder.deviceBrand ? `
+              <div class="info-box">
+                <label>Marca</label>
+                <span>${serviceOrder.deviceBrand}</span>
+              </div>` : ''}
+              ${serviceOrder.deviceModel ? `
+              <div class="info-box">
+                <label>Modelo</label>
+                <span>${serviceOrder.deviceModel}</span>
+              </div>` : ''}
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
+        ${serviceOrder.problemDescription ? `
+        <div class="section">
+          <h3>PROBLEMA RELATADO</h3>
+          <div class="section-content">
+            <p>${serviceOrder.problemDescription}</p>
+          </div>
+        </div>
+        ` : ''}
+
+        ${serviceOrder.diagnosis ? `
+        <div class="section">
+          <h3>DIAGNÓSTICO</h3>
+          <div class="section-content">
+            <p>${serviceOrder.diagnosis}</p>
+          </div>
+        </div>
+        ` : ''}
+
+        ${serviceOrder.solution ? `
+        <div class="section">
+          <h3>SOLUÇÃO APLICADA</h3>
+          <div class="section-content">
+            <p>${serviceOrder.solution}</p>
+          </div>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+          <p>Documento gerado em ${new Date().toLocaleString('pt-BR')}</p>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   if (loading) {
     return <LoadingState message="Carregando vendas..." />;
   }
@@ -754,9 +1065,12 @@ export default function GerenciarVendas() {
                         <tr className="border-b border-border">
                           <th className="text-left py-3 px-4 font-semibold text-foreground">Nº Pedido</th>
                           <th className="text-left py-3 px-4 font-semibold text-foreground">Data</th>
+                          <th className="text-left py-3 px-4 font-semibold text-foreground">Cliente</th>
                           <th className="text-left py-3 px-4 font-semibold text-foreground">Pagamento</th>
+                          <th className="text-center py-3 px-4 font-semibold text-foreground">Status Pgto</th>
                           <th className="text-right py-3 px-4 font-semibold text-foreground">Total</th>
                           <th className="text-center py-3 px-4 font-semibold text-foreground">Status</th>
+                          <th className="text-center py-3 px-4 font-semibold text-foreground">OS</th>
                           <th className="text-center py-3 px-4 font-semibold text-foreground">Ações</th>
                         </tr>
                       </thead>
@@ -767,19 +1081,58 @@ export default function GerenciarVendas() {
                             <td className="py-3 px-4 text-muted-foreground">
                               {new Date(order.createdAt).toLocaleString('pt-BR')}
                             </td>
-                            <td className="py-3 px-4 text-muted-foreground">{getPaymentMethodLabel(order.paymentMethod)}</td>
+                            <td className="py-3 px-4 text-muted-foreground">
+                              {order.customerName || <span className="italic text-gray-400">Não informado</span>}
+                            </td>
+                            <td className="py-3 px-4 text-muted-foreground">
+                              {getPaymentMethodLabel(order.paymentMethod)}
+                              {order.isCreditSale && (
+                                <span className="ml-1 text-amber-600 dark:text-amber-400" title="Venda a crediário">💳</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {order.isCreditSale ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  {getCreditStatusBadge(order.creditStatus || 'pending')}
+                                  {order.creditDueDate && (
+                                    <span className="text-xs text-muted-foreground">
+                                      Venc: {new Date(order.creditDueDate).toLocaleDateString('pt-BR')}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
                             <td className="py-3 px-4 text-right font-semibold text-foreground">
                               R$ {parseFloat(order.total).toFixed(2)}
                             </td>
                             <td className="py-3 px-4 text-center">{getStatusBadge(order.status)}</td>
                             <td className="py-3 px-4 text-center">
+                              {order.serviceOrderId && order.serviceOrder ? (
+                                <span className="text-blue-600 dark:text-blue-400 cursor-pointer" title={`OS #${order.serviceOrder.orderNumber}`}>
+                                  🔧 #{order.serviceOrder.orderNumber}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
                               <div className="flex gap-2 justify-center">
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => openOrderDetails(order)}
+                                  title="Ver detalhes"
+                                >
+                                  👁️
+                                </Button>
                                 <Button
                                   variant="secondary"
                                   size="sm"
                                   onClick={() => printSaleDeclaration(order)}
                                 >
-                                  🖨️ Imprimir
+                                  🖨️
                                 </Button>
                                 {order.status === 'pending' && (
                                   <Button
@@ -787,7 +1140,7 @@ export default function GerenciarVendas() {
                                     size="sm"
                                     onClick={() => openCancelModal(order)}
                                   >
-                                    ❌ Cancelar
+                                    ❌
                                   </Button>
                                 )}
                               </div>
@@ -818,17 +1171,18 @@ export default function GerenciarVendas() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px]">
+                    <table className="w-full min-w-[1100px]">
                       <thead>
                         <tr className="border-b border-border">
                           <th className="text-left py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Produto</th>
                           <th className="text-left py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Código</th>
                           <th className="text-center py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Qtd</th>
-                          <th className="text-right py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Preço</th>
                           <th className="text-right py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Total</th>
                           <th className="text-left py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Data</th>
                           <th className="text-left py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Cliente</th>
-                          <th className="text-left py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Vendedor</th>
+                          <th className="text-left py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Pagamento</th>
+                          <th className="text-center py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Status Pgto</th>
+                          <th className="text-center py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">OS</th>
                           <th className="text-center py-2 px-1 font-semibold text-foreground text-xs whitespace-nowrap">Ações</th>
                         </tr>
                       </thead>
@@ -838,9 +1192,6 @@ export default function GerenciarVendas() {
                             <td className="py-2 px-1 font-medium text-foreground text-xs">{sale.productName || 'N/A'}</td>
                             <td className="py-2 px-1 text-muted-foreground text-xs">{sale.productCode || 'N/A'}</td>
                             <td className="py-2 px-1 text-center text-foreground text-xs">{sale.quantity}</td>
-                            <td className="py-2 px-1 text-right text-muted-foreground text-xs">
-                              R$ {parseFloat(sale.price).toFixed(2)}
-                            </td>
                             <td className="py-2 px-1 text-right font-semibold text-foreground text-xs">
                               R$ {(sale.quantity * parseFloat(sale.price)).toFixed(2)}
                             </td>
@@ -848,7 +1199,45 @@ export default function GerenciarVendas() {
                               {new Date(sale.date).toLocaleDateString('pt-BR')}
                             </td>
                             <td className="py-2 px-1 text-muted-foreground text-xs">{sale.customerName || 'Não definido'}</td>
-                            <td className="py-2 px-1 text-muted-foreground text-xs">{sale.sellerName || 'N/A'}</td>
+                            <td className="py-2 px-1 text-muted-foreground text-xs">
+                              {getPaymentMethodLabel(sale.paymentMethod || 'cash')}
+                              {sale.isCreditSale ? (
+                                <span className="ml-1 text-amber-600 dark:text-amber-400" title="Venda a crediário">💳</span>
+                              ) : null}
+                            </td>
+                            <td className="py-2 px-1 text-center">
+                              {sale.isCreditSale ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  {getCreditStatusBadge(sale.creditStatus || 'pending')}
+                                  <select
+                                    value={sale.creditStatus || 'pending'}
+                                    onChange={(e) => updateSaleCreditStatus(sale.id, e.target.value as 'pending' | 'partial' | 'paid')}
+                                    disabled={updatingCreditStatus}
+                                    className="text-xs px-1 py-0.5 border border-border rounded bg-background text-foreground"
+                                  >
+                                    <option value="pending">Pendente</option>
+                                    <option value="partial">Parcial</option>
+                                    <option value="paid">Pago</option>
+                                  </select>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-1 text-center">
+                              {sale.serviceOrderId && sale.serviceOrder ? (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => printServiceOrder(sale.serviceOrder)}
+                                  title={`OS #${sale.serviceOrder.orderNumber}`}
+                                >
+                                  🔧 #{sale.serviceOrder.orderNumber}
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
                             <td className="py-2 px-1 text-center">
                               <div className="flex gap-1 justify-center flex-wrap">
                                 <Button
@@ -948,6 +1337,214 @@ export default function GerenciarVendas() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal de Detalhes do Pedido */}
+      <Modal
+        isOpen={showOrderDetailsModal}
+        onClose={() => {
+          setShowOrderDetailsModal(false);
+          setOrderDetails(null);
+        }}
+        title={`Detalhes do Pedido ${orderDetails?.orderNumber || ''}`}
+        size="lg"
+      >
+        {orderDetails && (
+          <div className="space-y-6">
+            {/* Informações Gerais */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-level-2 p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground">Data</p>
+                <p className="font-medium text-foreground">
+                  {new Date(orderDetails.createdAt).toLocaleString('pt-BR')}
+                </p>
+              </div>
+              <div className="bg-level-2 p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground">Cliente</p>
+                <p className="font-medium text-foreground">
+                  {orderDetails.customerName || 'Não informado'}
+                </p>
+              </div>
+              <div className="bg-level-2 p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground">Pagamento</p>
+                <p className="font-medium text-foreground">
+                  {getPaymentMethodLabel(orderDetails.paymentMethod)}
+                </p>
+              </div>
+              <div className="bg-level-2 p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="font-bold text-lg text-primary">
+                  R$ {parseFloat(orderDetails.total).toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            {/* Seção de Crediário */}
+            {orderDetails.isCreditSale && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
+                <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
+                  💳 Venda a Crediário/Fiado
+                </h3>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">Data de Vencimento</p>
+                    <p className="font-medium text-amber-900 dark:text-amber-100">
+                      {orderDetails.creditDueDate 
+                        ? new Date(orderDetails.creditDueDate).toLocaleDateString('pt-BR')
+                        : 'Não definida'
+                      }
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">Status Atual</p>
+                    <div className="mt-1">
+                      {getCreditStatusBadge(orderDetails.creditStatus || 'pending')}
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t border-amber-200 dark:border-amber-700 pt-4">
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">Alterar Status de Pagamento:</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant={orderDetails.creditStatus === 'pending' ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={() => updateCreditStatus(orderDetails.id, 'pending')}
+                      disabled={updatingCreditStatus || orderDetails.creditStatus === 'pending'}
+                    >
+                      ❌ Pendente
+                    </Button>
+                    <Button
+                      variant={orderDetails.creditStatus === 'partial' ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={() => updateCreditStatus(orderDetails.id, 'partial')}
+                      disabled={updatingCreditStatus || orderDetails.creditStatus === 'partial'}
+                    >
+                      ⚠️ Parcial
+                    </Button>
+                    <Button
+                      variant={orderDetails.creditStatus === 'paid' ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={() => updateCreditStatus(orderDetails.id, 'paid')}
+                      disabled={updatingCreditStatus || orderDetails.creditStatus === 'paid'}
+                    >
+                      ✅ Pago
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Seção de OS Vinculada */}
+            {orderDetails.serviceOrderId && orderDetails.serviceOrder && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center gap-2">
+                  🔧 Ordem de Serviço Vinculada
+                </h3>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">Número da OS</p>
+                    <p className="font-medium text-blue-900 dark:text-blue-100">
+                      #{orderDetails.serviceOrder.orderNumber}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">Status</p>
+                    <p className="font-medium text-blue-900 dark:text-blue-100 capitalize">
+                      {orderDetails.serviceOrder.status === 'open' && '🔵 Aberta'}
+                      {orderDetails.serviceOrder.status === 'in_progress' && '🟡 Em Andamento'}
+                      {orderDetails.serviceOrder.status === 'completed' && '🟢 Concluída'}
+                      {orderDetails.serviceOrder.status === 'cancelled' && '🔴 Cancelada'}
+                    </p>
+                  </div>
+                  {orderDetails.serviceOrder.deviceType && (
+                    <div>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">Equipamento</p>
+                      <p className="font-medium text-blue-900 dark:text-blue-100">
+                        {orderDetails.serviceOrder.deviceType}
+                      </p>
+                    </div>
+                  )}
+                  {orderDetails.serviceOrder.deviceBrand && (
+                    <div>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">Marca/Modelo</p>
+                      <p className="font-medium text-blue-900 dark:text-blue-100">
+                        {orderDetails.serviceOrder.deviceBrand} {orderDetails.serviceOrder.deviceModel || ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => printServiceOrder(orderDetails.serviceOrder!)}
+                  >
+                    🖨️ Imprimir OS
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => window.open(`/ordens-servico?os=${orderDetails.serviceOrder!.orderNumber}`, '_blank')}
+                  >
+                    🔗 Ver OS Completa
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Itens do Pedido */}
+            {orderDetails.items && orderDetails.items.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-foreground mb-3">Itens do Pedido</h3>
+                <div className="bg-level-2 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-3">Produto</th>
+                        <th className="text-center py-2 px-3">Qtd</th>
+                        <th className="text-right py-2 px-3">Preço</th>
+                        <th className="text-right py-2 px-3">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderDetails.items.map((item: any, index: number) => (
+                        <tr key={index} className="border-b border-border last:border-0">
+                          <td className="py-2 px-3">{item.productName || 'Produto'}</td>
+                          <td className="py-2 px-3 text-center">{item.quantity}</td>
+                          <td className="py-2 px-3 text-right">R$ {parseFloat(item.price).toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right font-medium">
+                            R$ {(item.quantity * parseFloat(item.price)).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Ações */}
+            <div className="flex gap-3 pt-4 border-t border-border">
+              <Button
+                variant="secondary"
+                onClick={() => printSaleDeclaration(orderDetails)}
+                className="flex-1"
+              >
+                🖨️ Imprimir Venda
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowOrderDetailsModal(false);
+                  setOrderDetails(null);
+                }}
+                className="flex-1"
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

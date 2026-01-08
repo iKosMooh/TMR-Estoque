@@ -369,9 +369,16 @@ export const sales = mysqlTable("sales", {
 	customerId: varchar("customer_id", { length: 36 }),
 	sellerSignature: text("seller_signature"),
 	sellerName: varchar("seller_name", { length: 255 }),
+	paymentMethod: varchar("payment_method", { length: 20 }).default('cash'),
+	isCreditSale: tinyint("is_credit_sale").default(0),
+	creditDueDate: date("credit_due_date"),
+	creditStatus: mysqlEnum("credit_status", ['pending', 'partial', 'paid']).default('pending'),
+	serviceOrderId: varchar("service_order_id", { length: 36 }),
 },
 (table) => [
 	primaryKey({ columns: [table.id], name: "sales_id"}),
+	index("idx_sales_service_order").on(table.serviceOrderId),
+	index("idx_sales_credit_status").on(table.creditStatus),
 ]);
 
 export const salesOrderItems = mysqlTable("sales_order_items", {
@@ -404,6 +411,8 @@ export const salesOrders = mysqlTable("sales_orders", {
 	paymentMethod: mysqlEnum("payment_method", ['cash','credit_card','debit_card','pix','boleto','credit_store','other']).default('cash'),
 	status: mysqlEnum(['pending','completed','cancelled']).default('pending').notNull(),
 	notes: text(),
+	// Vínculo com ordem de serviço
+	serviceOrderId: varchar("service_order_id", { length: 36 }),
 	// Campos para crediário/fiado
 	isCreditSale: tinyint("is_credit_sale").default(0),
 	creditDueDate: date("credit_due_date", { mode: 'string' }),
@@ -413,6 +422,7 @@ export const salesOrders = mysqlTable("sales_orders", {
 },
 (table) => [
 	primaryKey({ columns: [table.id], name: "sales_orders_id"}),
+	index("idx_sales_orders_service_order").on(table.serviceOrderId),
 ]);
 
 export const serviceOrderHistory = mysqlTable("service_order_history", {

@@ -100,6 +100,7 @@ interface Product {
 
 interface PreviewItem {
   internalCode?: string;
+  xmlCode?: string;
   barcode?: string;
   name?: string;
   ncm?: string;
@@ -115,9 +116,18 @@ interface PreviewItem {
   totalUnits?: number;
   unitPrice?: number;
   sellByUnit?: boolean;
+  forceCreate?: boolean;
   existing: {
     id: string;
+    name: string;
     currentQuantity?: number;
+    internalCode: string;
+    matchType: 'xmlCode' | 'barcode' | 'internalCode' | 'name';
+    sellByUnit: boolean;
+    unitsPerPackage: number;
+    salePrice: number;
+    costPrice: number;
+    barcode: string | null;
   } | null;
   action: 'create' | 'update';
 }
@@ -127,6 +137,9 @@ interface PreviewResult {
   totalItems: number;
   previewItems: PreviewItem[];
   fileName: string;
+  hasDuplicates?: boolean;
+  duplicateProducts?: string[];
+  duplicateMessage?: string;
 }
 
 interface ImportResult {
@@ -235,6 +248,8 @@ export default function Estoque() {
   const [deleteProductAfterBatch, setDeleteProductAfterBatch] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [existingProduct, setExistingProduct] = useState<{id: string; name: string} | null>(null);
+  const [showDuplicatesConfirmModal, setShowDuplicatesConfirmModal] = useState(false);
+  const [duplicateAction, setDuplicateAction] = useState<{[key: number]: 'addBatch' | 'createNew' | 'skip'}>({});
   const [markupPercentage, setMarkupPercentage] = useState<string>('');
   // Estado para margem de lucro global na importação
   const [globalMarkup, setGlobalMarkup] = useState<string>('');
@@ -865,17 +880,33 @@ export default function Estoque() {
       // Aplicar as edições aos itens da prévia
       const editedPreview = {
         ...importPreview,
-        previewItems: importPreview.previewItems.map((item, index) => ({
-          ...item,
-          salePrice: getEditedImportPrice(index, item.salePrice),
-          costPrice: editedImportItems[index]?.costPrice ?? item.costPrice ?? item.salePrice,
-          quantity: getEditedImportQuantity(index, item.quantity),
-          markupPercentage: editedImportItems[index]?.markupPercentage ?? 0,
-          // Campos de unidades
-          unitsPerPackage: editedImportItems[index]?.unitsPerPackage ?? 1,
-          sellByUnit: editedImportItems[index]?.sellByUnit ?? false,
-          unitPrice: editedImportItems[index]?.unitPrice ?? 0,
-        }))
+        previewItems: importPreview.previewItems
+          .map((item, index) => {
+            const action = duplicateAction[index] ?? (item.existing ? 'addBatch' : 'createNew');
+            
+            // Pular itens marcados como 'skip'
+            if (action === 'skip') return null;
+            
+            return {
+              ...item,
+              salePrice: getEditedImportPrice(index, item.salePrice),
+              costPrice: editedImportItems[index]?.costPrice ?? item.costPrice ?? item.salePrice,
+              quantity: getEditedImportQuantity(index, item.quantity),
+              markupPercentage: editedImportItems[index]?.markupPercentage ?? 0,
+              // Campos de unidades - herdar do produto existente se for addBatch
+              unitsPerPackage: action === 'addBatch' && item.existing 
+                ? item.existing.unitsPerPackage 
+                : editedImportItems[index]?.unitsPerPackage ?? 1,
+              sellByUnit: action === 'addBatch' && item.existing 
+                ? item.existing.sellByUnit 
+                : editedImportItems[index]?.sellByUnit ?? false,
+              unitPrice: editedImportItems[index]?.unitPrice ?? 0,
+              // Definir ação baseada na escolha do usuário
+              action: action === 'addBatch' ? 'update' : 'create',
+              forceCreate: action === 'createNew' && item.existing ? true : false,
+            };
+          })
+          .filter(item => item !== null) // Remover itens pulados
       };
 
       const response = await fetch('/api/import/xml/confirm', {
@@ -895,6 +926,7 @@ export default function Estoque() {
         setImportFile(null);
         setEditedImportItems({});
         setGlobalMarkup('');
+        setDuplicateAction({});
         fetchProducts();
       } else {
         toast.error(data.message);
@@ -912,6 +944,7 @@ export default function Estoque() {
     setImportPreview(null);
     setEditedImportItems({});
     setGlobalMarkup('');
+    setDuplicateAction({});
   };
 
   const handleImportPriceChange = (index: number, value: string) => {
@@ -1702,7 +1735,7 @@ export default function Estoque() {
       {/* Modal de Importação */}
       {showImportModal && (
         <div className="fixed inset-0 bg-background backdrop-blur-sm overflow-y-auto h-full w-full z-50">
-          <div className="relative bg-level-1 top-20 mx-auto p-5 border border-border w-11/12 max-w-4xl shadow-lg rounded-lg bg-card">
+          <div className="relative bg-level-1 top-10 mx-auto p-5 border border-border w-[95%] max-w-6xl shadow-lg rounded-lg bg-card">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-card-foreground">Importar XML NF-e</h3>
@@ -1763,46 +1796,69 @@ export default function Estoque() {
                   </div>
 
                   {/* Margem Global */}
-                  <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-4 rounded-lg">
-                    <h5 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3">📊 Aplicar Margem de Lucro Global</h5>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg">
+                    <h5 className="text-sm font-semibold text-blue-700 dark:text-black-300 mb-3">📊 Aplicar Margem de Lucro Global</h5>
                     <div className="flex items-center gap-4">
                       <div className="flex-1">
-                        <label className="block text-xs text-purple-600 dark:text-purple-400 mb-1">Margem (%)</label>
+                        <label className="block text-xs text-blue-600 dark:text-black-400 mb-1">Margem (%)</label>
                         <input
                           type="number"
                           step="0.01"
                           value={globalMarkup}
                           onChange={(e) => setGlobalMarkup(e.target.value)}
-                          className="w-full px-3 py-2 border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-purple-900/30 text-card-foreground focus:ring-2 focus:ring-purple-500"
+                          className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded bg-white dark:bg-blue-900/30 text-card-foreground focus:ring-2 focus:ring-blue-500"
                           placeholder="Ex: 30 para 30%"
                         />
                       </div>
                       <button
                         type="button"
                         onClick={applyGlobalMarkupToImport}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-500 transition-colors mt-5"
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors mt-5"
                       >
                         Aplicar a Todos
                       </button>
                     </div>
-                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                    <p className="text-xs text-blue-600 dark:text-black-400 mt-2">
                       💡 O preço de custo será o valor do XML e o preço de venda será calculado com a margem
                     </p>
                   </div>
 
-                  <div className="bg-card border border-border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
-                    <table className="w-full">
+                  {/* Aviso de duplicatas */}
+                  {importPreview.hasDuplicates && (
+                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-4 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">⚠️</span>
+                        <div>
+                          <h5 className="font-semibold text-orange-800 dark:text-black-200">
+                            Produtos já existentes detectados
+                          </h5>
+                          <p className="text-sm text-orange-700 dark:text-black-300 mt-1">
+                            {importPreview.duplicateProducts?.length} produto(s) já existem no estoque. 
+                            Por padrão serão importados como <strong>novos lotes</strong>.
+                            Use a coluna &quot;Ação&quot; para escolher o que fazer com cada um.
+                          </p>
+                          <p className="text-xs text-orange-600 dark:text-black-400 mt-2">
+                            💡 Linhas laranjas = produto existente | &quot;+ Lote&quot; adiciona estoque | &quot;Criar Novo&quot; cria produto separado
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-card border border-border rounded-lg overflow-hidden max-h-[500px] overflow-auto">
+                    <table className="min-w-full w-max">
                       <thead className="bg-muted sticky top-0 z-10">
                         <tr>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Código</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Nome</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Custo (R$)</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Margem (%)</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Venda (R$)</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Qtd</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Un/Cx</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Vende Un?</th>
-                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs">Status</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[80px]">Código</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[150px]">Nome</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[90px]">Custo (R$)</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[80px]">Margem (%)</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[90px]">Venda (R$)</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[60px]">Qtd</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[60px]">Un/Cx</th>
+                          <th className="px-2 py-2 text-center text-card-foreground font-medium text-xs min-w-[80px]">Vende Un?</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[70px]">Status</th>
+                          <th className="px-2 py-2 text-left text-card-foreground font-medium text-xs min-w-[110px]">Ação</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1810,13 +1866,39 @@ export default function Estoque() {
                           const costPrice = editedImportItems[index]?.costPrice ?? item.costPrice ?? item.salePrice;
                           const salePrice = getEditedImportPrice(index, item.salePrice);
                           const markup = editedImportItems[index]?.markupPercentage ?? (costPrice > 0 ? ((salePrice - costPrice) / costPrice * 100) : 0);
-                          const unitsPerPackage = editedImportItems[index]?.unitsPerPackage ?? 1;
-                          const sellByUnit = editedImportItems[index]?.sellByUnit ?? false;
+                          // Puxar unitsPerPackage e sellByUnit do produto existente se houver
+                          const unitsPerPackage = editedImportItems[index]?.unitsPerPackage ?? item.existing?.unitsPerPackage ?? 1;
+                          const sellByUnit = editedImportItems[index]?.sellByUnit ?? item.existing?.sellByUnit ?? false;
+                          const action = duplicateAction[index] ?? (item.existing ? 'addBatch' : 'createNew');
+                          const isExisting = !!item.existing;
                           
                           return (
-                          <tr key={index} className="border-t border-border hover:bg-muted/50">
-                            <td className="px-2 py-2 text-card-foreground text-xs">{item.internalCode || item.barcode}</td>
-                            <td className="px-2 py-2 text-card-foreground text-xs max-w-[120px] truncate" title={item.name}>{item.name}</td>
+                          <tr 
+                            key={index} 
+                            className={`border-t border-border ${
+                              isExisting 
+                                ? 'bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/40' 
+                                : 'hover:bg-muted/50'
+                            }`}
+                          >
+                            <td className="px-2 py-2 text-card-foreground text-xs">
+                              {item.internalCode || item.barcode}
+                              {isExisting && item.existing?.matchType && (
+                                <span className="block text-[10px] text-orange-600 dark:text-orange-400">
+                                  ({item.existing.matchType === 'xmlCode' ? 'Cód XML' : 
+                                    item.existing.matchType === 'barcode' ? 'EAN' :
+                                    item.existing.matchType === 'internalCode' ? 'Cód Int' : 'Nome'})
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 text-card-foreground text-xs max-w-[120px]" title={item.name}>
+                              <span className="truncate block">{item.name}</span>
+                              {isExisting && item.existing?.name !== item.name && (
+                                <span className="text-[10px] text-orange-600 dark:text-orange-400 truncate block" title={`Existente: ${item.existing?.name}`}>
+                                  → {item.existing?.name?.substring(0, 20)}...
+                                </span>
+                              )}
+                            </td>
                             {/* Preço de Custo */}
                             <td className="px-2 py-2">
                               <input
@@ -1825,7 +1907,9 @@ export default function Estoque() {
                                 min="0"
                                 value={costPrice.toFixed(2)}
                                 onChange={(e) => handleImportCostPriceChange(index, e.target.value)}
-                                className="w-20 px-1 py-1 border border-input rounded text-xs text-card-foreground bg-background focus:ring-1 focus:ring-ring"
+                                className={`w-20 px-1 py-1 border rounded text-xs text-card-foreground focus:ring-1 focus:ring-ring ${
+                                  isExisting ? 'border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/30' : 'border-input bg-background'
+                                }`}
                                 placeholder="0.00"
                               />
                             </td>
@@ -1836,7 +1920,7 @@ export default function Estoque() {
                                 step="0.01"
                                 value={markup.toFixed(1)}
                                 onChange={(e) => handleImportMarkupChange(index, e.target.value)}
-                                className="w-16 px-1 py-1 border border-purple-300 dark:border-purple-700 rounded text-xs text-card-foreground bg-purple-50 dark:bg-purple-900/30 focus:ring-1 focus:ring-purple-500"
+                                className="w-16 px-1 py-1 border border-blue-300 dark:border-blue-700 rounded text-xs text-card-foreground bg-blue-50 dark:bg-blue-900/30 focus:ring-1 focus:ring-blue-500"
                                 placeholder="0"
                               />
                             </td>
@@ -1860,7 +1944,9 @@ export default function Estoque() {
                                 step="1"
                                 value={getEditedImportQuantity(index, item.quantity)}
                                 onChange={(e) => handleImportQuantityChange(index, e.target.value)}
-                                className="w-14 px-1 py-1 border border-input rounded text-xs text-card-foreground bg-background focus:ring-1 focus:ring-ring"
+                                className={`w-14 px-1 py-1 border rounded text-xs text-card-foreground focus:ring-1 focus:ring-ring ${
+                                  isExisting ? 'border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/30' : 'border-input bg-background'
+                                }`}
                                 placeholder="0"
                               />
                             </td>
@@ -1872,8 +1958,12 @@ export default function Estoque() {
                                 step="1"
                                 value={unitsPerPackage}
                                 onChange={(e) => handleImportUnitsPerPackageChange(index, e.target.value)}
-                                className="w-12 px-1 py-1 border border-input rounded text-xs text-card-foreground bg-background focus:ring-1 focus:ring-ring"
+                                className={`w-12 px-1 py-1 border rounded text-xs text-card-foreground focus:ring-1 focus:ring-ring ${
+                                  isExisting ? 'border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/30' : 'border-input bg-background'
+                                }`}
                                 placeholder="1"
+                                disabled={isExisting && action === 'addBatch'}
+                                title={isExisting && action === 'addBatch' ? 'Herdado do produto existente' : ''}
                               />
                             </td>
                             {/* Vende por Unidade */}
@@ -1883,16 +1973,42 @@ export default function Estoque() {
                                 checked={sellByUnit}
                                 onChange={(e) => handleImportSellByUnitChange(index, e.target.checked)}
                                 className="w-4 h-4 rounded border-border cursor-pointer"
+                                disabled={isExisting && action === 'addBatch'}
+                                title={isExisting && action === 'addBatch' ? 'Herdado do produto existente' : ''}
                               />
                             </td>
                             {/* Status */}
                             <td className="px-2 py-2">
-                              {item.existing ? (
-                                <span className="text-orange-700 dark:text-orange-300 text-xs font-medium">
-                                  Existe ({item.existing.currentQuantity || 0})
-                                </span>
+                              {isExisting ? (
+                                <div className="flex flex-col">
+                                  <span className="text-orange-700 dark:text-orange-300 text-xs font-medium">
+                                    📦 Existe
+                                  </span>
+                                  <span className="text-[10px] text-orange-600 dark:text-orange-400">
+                                    Est: {item.existing?.currentQuantity || 0}
+                                  </span>
+                                </div>
                               ) : (
-                                <span className="text-green-700 dark:text-green-300 text-xs font-medium">Novo</span>
+                                <span className="text-green-700 dark:text-green-300 text-xs font-medium">✨ Novo</span>
+                              )}
+                            </td>
+                            {/* Ação */}
+                            <td className="px-2 py-2">
+                              {isExisting ? (
+                                <select
+                                  value={action}
+                                  onChange={(e) => setDuplicateAction(prev => ({
+                                    ...prev,
+                                    [index]: e.target.value as 'addBatch' | 'createNew' | 'skip'
+                                  }))}
+                                  className="w-24 px-1 py-1 border border-orange-300 dark:border-orange-700 rounded text-xs text-card-foreground bg-orange-50 dark:bg-orange-900/30 focus:ring-1 focus:ring-orange-500"
+                                >
+                                  <option value="addBatch">+ Lote</option>
+                                  <option value="createNew">Criar Novo</option>
+                                  <option value="skip">Pular</option>
+                                </select>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Criar</span>
                               )}
                             </td>
                           </tr>
@@ -1904,11 +2020,13 @@ export default function Estoque() {
                   {/* Legenda */}
                   <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground">
                     <p className="font-medium mb-1">📝 Legenda:</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       <span><strong>Custo:</strong> Preço de compra (NF-e)</span>
                       <span><strong>Margem:</strong> % de lucro sobre o custo</span>
                       <span><strong>Venda:</strong> Preço final de venda</span>
-                      <span><strong>Un/Cx:</strong> Unidades por caixa/embalagem</span>
+                      <span><strong>Un/Cx:</strong> Unidades por caixa</span>
+                      <span><strong>+ Lote:</strong> Adiciona ao produto existente</span>
+                      <span><strong>Criar Novo:</strong> Cria produto separado</span>
                     </div>
                   </div>
 
@@ -2655,7 +2773,7 @@ export default function Estoque() {
                           setFormData({ ...formData, salePrice: newSalePrice });
                           updateMarkupFromPrices(formData.costPrice, newSalePrice);
                         }}
-                        className="w-full px-3 py-2 bg-background border border-purple-300 dark:border-purple-700 rounded text-foreground focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 bg-background border border-blue-300 dark:border-blue-700 rounded text-foreground focus:ring-2 focus:ring-blue-500"
                         placeholder="0.00"
                         required
                       />
